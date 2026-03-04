@@ -96,6 +96,15 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     return null;
   }
 
+  // Request permission if not yet granted
+  if (Notification.permission === "default") {
+    const granted = await requestPermission();
+    if (!granted) {
+      console.warn("Notification permission denied by user");
+      return null;
+    }
+  }
+
   if (Notification.permission !== "granted") {
     console.warn("Notification permission not granted");
     return null;
