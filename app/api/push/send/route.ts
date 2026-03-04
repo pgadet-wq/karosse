@@ -2,13 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import webpush from "web-push";
 
-// Configure web-push with VAPID keys
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:contact@karosse.nc";
+// Lazy initialization flag
+let vapidConfigured = false;
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+function configureVapid() {
+  if (vapidConfigured) return true;
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT || "mailto:contact@karosse.nc";
+
+  if (!publicKey || !privateKey) {
+    console.error("VAPID keys not configured");
+    return false;
+  }
+
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  vapidConfigured = true;
+  return true;
 }
 
 interface SendPushPayload {
@@ -27,6 +38,14 @@ interface SendPushPayload {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Configure VAPID on first request
+    if (!configureVapid()) {
+      return NextResponse.json(
+        { error: "Push notifications not configured" },
+        { status: 503 }
+      );
+    }
+
     const supabase = createServerClient();
 
     // Get current user
