@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { ProfileClient } from "./client";
 
@@ -15,7 +16,7 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login");
   }
 
   // Get member info with driver status

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { CalendarClient } from "./client";
 
@@ -67,7 +68,7 @@ export default async function CalendarPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login");
   }
 
   // Get user's member info including role
@@ -78,7 +79,7 @@ export default async function CalendarPage() {
     .single();
 
   if (!currentMember) {
-    return null;
+    redirect("/onboarding");
   }
 
   // Get trips for the group

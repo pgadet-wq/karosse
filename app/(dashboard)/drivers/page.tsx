@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { DriversClient } from "./client";
 
@@ -34,7 +35,7 @@ export default async function DriversPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login");
   }
 
   // Get user's member info and group
@@ -45,7 +46,7 @@ export default async function DriversPage() {
     .single();
 
   if (!currentMember) {
-    return null;
+    redirect("/onboarding");
   }
 
   // Get all drivers in the group with member info
