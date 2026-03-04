@@ -16,7 +16,7 @@ export function PageShell({
   action,
 }: PageShellProps) {
   return (
-    <div className={cn("min-h-screen pb-24", className)}>
+    <div className={cn("min-h-screen pb-safe-bottom", className)}>
       {!hideHeader && title && (
         <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
           <div className="px-4 py-4 flex items-center justify-between">
