@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
   ChevronRight,
+  UserMinus,
 } from "lucide-react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
@@ -188,7 +189,7 @@ export function DayDetail({
     }
   }
 
-  async function removePassenger(passengerId: string) {
+  async function removePassenger(trip: Trip, passenger: TripPassenger) {
     if (!confirm("Retirer cet enfant du trajet ?")) return;
 
     setIsLoading(true);
@@ -198,9 +199,26 @@ export function DayDetail({
       const { error } = await supabase
         .from("trip_passengers")
         .delete()
-        .eq("id", passengerId);
+        .eq("id", passenger.id);
 
       if (error) throw error;
+
+      // Notify other drivers in the group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "child_removed",
+            tripDate: trip.date,
+            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+            childName: `${passenger.child.first_name} ${passenger.child.last_name || ""}`.trim(),
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
 
       toast.success("Enfant retiré du trajet");
       router.refresh();
@@ -235,7 +253,7 @@ export function DayDetail({
     }
   }
 
-  async function cancelTrip(tripId: string) {
+  async function cancelTrip(trip: Trip) {
     if (!confirm("Annuler ce trajet ?")) return;
 
     setIsLoading(true);
@@ -245,14 +263,72 @@ export function DayDetail({
       const { error } = await supabase
         .from("trips")
         .update({ status: "cancelled" })
-        .eq("id", tripId);
+        .eq("id", trip.id);
 
       if (error) throw error;
+
+      // Notify other drivers in the group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "trip_cancelled",
+            tripDate: trip.date,
+            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
 
       toast.success("Trajet annulé");
       router.refresh();
     } catch (error: unknown) {
       console.error("Erreur cancelTrip:", error);
+      const err = error as { message?: string };
+      toast.error(err.message || "Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function removeDriver(trip: Trip) {
+    if (!confirm("Retirer le conducteur de ce trajet ?")) return;
+
+    setIsLoading(true);
+    const supabase = createBrowserClient();
+
+    try {
+      const { error } = await supabase
+        .from("trips")
+        .update({ driver_id: null, status: "planned" })
+        .eq("id", trip.id);
+
+      if (error) throw error;
+
+      // Notify other drivers in the group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "driver_removed",
+            tripDate: trip.date,
+            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+            driverName: trip.driver?.display_name || "Un conducteur",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
+
+      toast.success("Conducteur retiré");
+      router.refresh();
+    } catch (error: unknown) {
+      console.error("Erreur removeDriver:", error);
       const err = error as { message?: string };
       toast.error(err.message || "Une erreur est survenue");
     } finally {
@@ -293,11 +369,21 @@ export function DayDetail({
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-1 text-sm text-gray-500">
-                <Users className="w-4 h-4" />
-                <span>
-                  {trip.passengers.length}/{trip.available_seats}
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 text-sm text-gray-500">
+                  <Users className="w-4 h-4" />
+                  <span>
+                    {trip.passengers.length}/{trip.available_seats}
+                  </span>
+                </div>
+                <button
+                  onClick={() => removeDriver(trip)}
+                  disabled={isLoading}
+                  className="p-1.5 text-gray-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="Retirer le conducteur"
+                >
+                  <UserMinus className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -318,7 +404,7 @@ export function DayDetail({
                       {passenger.child.first_name} {passenger.child.last_name}
                     </span>
                     <button
-                      onClick={() => removePassenger(passenger.id)}
+                      onClick={() => removePassenger(trip, passenger)}
                       className="text-gray-400 hover:text-danger transition-colors"
                     >
                       <X className="w-4 h-4" />
@@ -381,7 +467,7 @@ export function DayDetail({
                   Confirmer
                 </button>
                 <button
-                  onClick={() => cancelTrip(trip.id)}
+                  onClick={() => cancelTrip(trip)}
                   disabled={isLoading}
                   className="px-4 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -393,7 +479,7 @@ export function DayDetail({
             {trip.status === "confirmed" && (
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
                 <button
-                  onClick={() => cancelTrip(trip.id)}
+                  onClick={() => cancelTrip(trip)}
                   disabled={isLoading}
                   className="flex-1 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
                 >

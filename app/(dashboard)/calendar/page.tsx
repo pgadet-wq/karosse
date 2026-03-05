@@ -114,6 +114,7 @@ export default async function CalendarPage() {
       )
     `)
     .eq("group_id", currentMember.group_id)
+    .neq("status", "cancelled")
     .order("date", { ascending: true });
 
   // Transform trips data
