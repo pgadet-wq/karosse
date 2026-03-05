@@ -93,7 +93,7 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   if (!isPushSupported()) {
     console.warn("Push notifications not supported");
-    return null;
+    throw new Error("Votre navigateur ne supporte pas les notifications");
   }
 
   // Request permission if not yet granted
@@ -101,25 +101,25 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     const granted = await requestPermission();
     if (!granted) {
       console.warn("Notification permission denied by user");
-      return null;
+      throw new Error("Permission refusée par l'utilisateur");
     }
   }
 
   if (Notification.permission !== "granted") {
     console.warn("Notification permission not granted");
-    return null;
+    throw new Error("Permission non accordée");
   }
 
   if (!VAPID_PUBLIC_KEY) {
     console.error("VAPID public key not configured");
-    return null;
+    throw new Error("Configuration VAPID manquante");
   }
 
   try {
     const registration = await getServiceWorkerRegistration();
     if (!registration) {
       console.error("Service worker not registered");
-      return null;
+      throw new Error("Service Worker non enregistré");
     }
 
     // Check for existing subscription
@@ -139,7 +139,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     return subscription;
   } catch (error) {
     console.error("Error subscribing to push:", error);
-    return null;
+    throw error;
   }
 }
 

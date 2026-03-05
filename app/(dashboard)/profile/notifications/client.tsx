@@ -80,7 +80,8 @@ export function NotificationsClient() {
       }
     } catch (error) {
       console.error("Error enabling notifications:", error);
-      toast.error("Une erreur est survenue");
+      const message = error instanceof Error ? error.message : "Une erreur est survenue";
+      toast.error(message);
     } finally {
       setIsToggling(false);
     }
@@ -105,7 +106,8 @@ export function NotificationsClient() {
       }
     } catch (error) {
       console.error("Error toggling subscription:", error);
-      toast.error("Une erreur est survenue");
+      const message = error instanceof Error ? error.message : "Une erreur est survenue";
+      toast.error(message);
     } finally {
       setIsToggling(false);
     }

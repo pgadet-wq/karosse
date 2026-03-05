@@ -96,7 +96,8 @@ export function ProfileClient({ user, isDriver, driverId }: ProfileClientProps) 
       }
     } catch (error) {
       console.error("Error toggling notifications:", error);
-      toast.error("Une erreur est survenue");
+      const message = error instanceof Error ? error.message : "Une erreur est survenue";
+      toast.error(message);
     } finally {
       setIsTogglingNotifications(false);
     }
