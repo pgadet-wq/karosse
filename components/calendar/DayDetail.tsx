@@ -212,6 +212,54 @@ export function DayDetail({
     }
   }
 
+  async function confirmTrip(tripId: string) {
+    setIsLoading(true);
+    const supabase = createBrowserClient();
+
+    try {
+      const { error } = await supabase
+        .from("trips")
+        .update({ status: "confirmed" })
+        .eq("id", tripId);
+
+      if (error) throw error;
+
+      toast.success("Trajet confirmé");
+      router.refresh();
+    } catch (error: unknown) {
+      console.error("Erreur confirmTrip:", error);
+      const err = error as { message?: string };
+      toast.error(err.message || "Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function cancelTrip(tripId: string) {
+    if (!confirm("Annuler ce trajet ?")) return;
+
+    setIsLoading(true);
+    const supabase = createBrowserClient();
+
+    try {
+      const { error } = await supabase
+        .from("trips")
+        .update({ status: "cancelled" })
+        .eq("id", tripId);
+
+      if (error) throw error;
+
+      toast.success("Trajet annulé");
+      router.refresh();
+    } catch (error: unknown) {
+      console.error("Erreur cancelTrip:", error);
+      const err = error as { message?: string };
+      toast.error(err.message || "Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function renderTrip(trip: Trip | undefined, direction: "aller" | "retour") {
     const label = direction === "aller" ? "Aller" : "Retour";
     const icon = direction === "aller" ? "→" : "←";
@@ -319,6 +367,39 @@ export function DayDetail({
                   </button>
                 )}
               </>
+            )}
+
+            {/* Action buttons */}
+            {trip.status === "planned" && (
+              <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
+                <button
+                  onClick={() => confirmTrip(trip.id)}
+                  disabled={isLoading}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-success text-white font-medium rounded-lg hover:bg-success/90 transition-colors disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => cancelTrip(trip.id)}
+                  disabled={isLoading}
+                  className="px-4 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+
+            {trip.status === "confirmed" && (
+              <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
+                <button
+                  onClick={() => cancelTrip(trip.id)}
+                  disabled={isLoading}
+                  className="flex-1 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Annuler le trajet
+                </button>
+              </div>
             )}
           </>
         ) : (
