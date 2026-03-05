@@ -60,7 +60,7 @@ body {
 
 @layer utilities {
   .pb-safe-bottom {
-    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
   }
 
   .text-balance {
