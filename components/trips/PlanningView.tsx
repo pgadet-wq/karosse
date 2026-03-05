@@ -339,7 +339,7 @@ export function PlanningView({
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+    <div className="fixed inset-0 bg-gray-100 z-[60] flex flex-col">
       {/* Header */}
       <header className="bg-white border-b px-4 py-3 flex items-center justify-between">
         <button
