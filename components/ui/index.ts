@@ -1,5 +1,6 @@
 export * from "./Button";
 export * from "./Modal";
+export * from "./ConfirmModal";
 export * from "./Avatar";
 export * from "./EmptyState";
 export * from "./ErrorBoundary";

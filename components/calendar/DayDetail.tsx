@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Modal, Avatar } from "@/components/ui";
+import { Modal, Avatar, ConfirmModal } from "@/components/ui";
 import { formatDateFr, getDayStatus } from "@/lib/calendar-utils";
 import { createBrowserClient } from "@/lib/supabase/client";
 
@@ -75,6 +75,12 @@ export function DayDetail({
   const [isLoading, setIsLoading] = useState(false);
   const [showDriverSelect, setShowDriverSelect] = useState<"aller" | "retour" | null>(null);
   const [showChildSelect, setShowChildSelect] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "cancelTrip" | "removeDriver" | "removePassenger";
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const dayStatus = getDayStatus(date);
   const dateStr = format(date, "yyyy-MM-dd");
@@ -189,45 +195,52 @@ export function DayDetail({
     }
   }
 
-  async function removePassenger(trip: Trip, passenger: TripPassenger) {
-    if (!confirm("Retirer cet enfant du trajet ?")) return;
+  function requestRemovePassenger(trip: Trip, passenger: TripPassenger) {
+    const childName = `${passenger.child.first_name} ${passenger.child.last_name || ""}`.trim();
+    setConfirmAction({
+      type: "removePassenger",
+      title: "Retirer le passager",
+      message: `Voulez-vous retirer ${childName} de ce trajet ?`,
+      onConfirm: async () => {
+        setIsLoading(true);
+        const supabase = createBrowserClient();
 
-    setIsLoading(true);
-    const supabase = createBrowserClient();
+        try {
+          const { error } = await supabase
+            .from("trip_passengers")
+            .delete()
+            .eq("id", passenger.id);
 
-    try {
-      const { error } = await supabase
-        .from("trip_passengers")
-        .delete()
-        .eq("id", passenger.id);
+          if (error) throw error;
 
-      if (error) throw error;
+          // Notify other drivers in the group
+          try {
+            await fetch("/api/push/notify-group", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                groupId,
+                type: "child_removed",
+                tripDate: trip.date,
+                tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+                childName,
+              }),
+            });
+          } catch (notifyError) {
+            console.error("Failed to notify group:", notifyError);
+          }
 
-      // Notify other drivers in the group
-      try {
-        await fetch("/api/push/notify-group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            groupId,
-            type: "child_removed",
-            tripDate: trip.date,
-            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
-            childName: `${passenger.child.first_name} ${passenger.child.last_name || ""}`.trim(),
-          }),
-        });
-      } catch (notifyError) {
-        console.error("Failed to notify group:", notifyError);
-      }
-
-      toast.success("Enfant retiré du trajet");
-      router.refresh();
-    } catch (error) {
-      console.error(error);
-      toast.error("Une erreur est survenue");
-    } finally {
-      setIsLoading(false);
-    }
+          toast.success("Enfant retiré du trajet");
+          setConfirmAction(null);
+          router.refresh();
+        } catch (error) {
+          console.error(error);
+          toast.error("Une erreur est survenue");
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
   }
 
   async function confirmTrip(tripId: string) {
@@ -253,87 +266,101 @@ export function DayDetail({
     }
   }
 
-  async function cancelTrip(trip: Trip) {
-    if (!confirm("Annuler ce trajet ?")) return;
+  function requestCancelTrip(trip: Trip) {
+    const directionLabel = trip.direction === "aller" ? "aller" : "retour";
+    setConfirmAction({
+      type: "cancelTrip",
+      title: "Annuler le trajet",
+      message: `Voulez-vous annuler le trajet ${directionLabel} ? Tous les passagers seront notifiés.`,
+      onConfirm: async () => {
+        setIsLoading(true);
+        const supabase = createBrowserClient();
 
-    setIsLoading(true);
-    const supabase = createBrowserClient();
+        try {
+          const { error } = await supabase
+            .from("trips")
+            .update({ status: "cancelled" })
+            .eq("id", trip.id);
 
-    try {
-      const { error } = await supabase
-        .from("trips")
-        .update({ status: "cancelled" })
-        .eq("id", trip.id);
+          if (error) throw error;
 
-      if (error) throw error;
+          // Notify other drivers in the group
+          try {
+            await fetch("/api/push/notify-group", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                groupId,
+                type: "trip_cancelled",
+                tripDate: trip.date,
+                tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+              }),
+            });
+          } catch (notifyError) {
+            console.error("Failed to notify group:", notifyError);
+          }
 
-      // Notify other drivers in the group
-      try {
-        await fetch("/api/push/notify-group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            groupId,
-            type: "trip_cancelled",
-            tripDate: trip.date,
-            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
-          }),
-        });
-      } catch (notifyError) {
-        console.error("Failed to notify group:", notifyError);
-      }
-
-      toast.success("Trajet annulé");
-      router.refresh();
-    } catch (error: unknown) {
-      console.error("Erreur cancelTrip:", error);
-      const err = error as { message?: string };
-      toast.error(err.message || "Une erreur est survenue");
-    } finally {
-      setIsLoading(false);
-    }
+          toast.success("Trajet annulé");
+          setConfirmAction(null);
+          router.refresh();
+        } catch (error: unknown) {
+          console.error("Erreur cancelTrip:", error);
+          const err = error as { message?: string };
+          toast.error(err.message || "Une erreur est survenue");
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
   }
 
-  async function removeDriver(trip: Trip) {
-    if (!confirm("Retirer le conducteur de ce trajet ?")) return;
+  function requestRemoveDriver(trip: Trip) {
+    const driverName = trip.driver?.display_name || "le conducteur";
+    setConfirmAction({
+      type: "removeDriver",
+      title: "Retirer le conducteur",
+      message: `Voulez-vous retirer ${driverName} de ce trajet ? Les autres conducteurs seront notifiés.`,
+      onConfirm: async () => {
+        setIsLoading(true);
+        const supabase = createBrowserClient();
 
-    setIsLoading(true);
-    const supabase = createBrowserClient();
+        try {
+          const { error } = await supabase
+            .from("trips")
+            .update({ driver_id: null, status: "planned" })
+            .eq("id", trip.id);
 
-    try {
-      const { error } = await supabase
-        .from("trips")
-        .update({ driver_id: null, status: "planned" })
-        .eq("id", trip.id);
+          if (error) throw error;
 
-      if (error) throw error;
+          // Notify other drivers in the group
+          try {
+            await fetch("/api/push/notify-group", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                groupId,
+                type: "driver_removed",
+                tripDate: trip.date,
+                tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+                driverName: trip.driver?.display_name || "Un conducteur",
+              }),
+            });
+          } catch (notifyError) {
+            console.error("Failed to notify group:", notifyError);
+          }
 
-      // Notify other drivers in the group
-      try {
-        await fetch("/api/push/notify-group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            groupId,
-            type: "driver_removed",
-            tripDate: trip.date,
-            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
-            driverName: trip.driver?.display_name || "Un conducteur",
-          }),
-        });
-      } catch (notifyError) {
-        console.error("Failed to notify group:", notifyError);
-      }
-
-      toast.success("Conducteur retiré");
-      router.refresh();
-    } catch (error: unknown) {
-      console.error("Erreur removeDriver:", error);
-      const err = error as { message?: string };
-      toast.error(err.message || "Une erreur est survenue");
-    } finally {
-      setIsLoading(false);
-    }
+          toast.success("Conducteur retiré");
+          setConfirmAction(null);
+          router.refresh();
+        } catch (error: unknown) {
+          console.error("Erreur removeDriver:", error);
+          const err = error as { message?: string };
+          toast.error(err.message || "Une erreur est survenue");
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
   }
 
   function renderTrip(trip: Trip | undefined, direction: "aller" | "retour") {
@@ -377,7 +404,7 @@ export function DayDetail({
                   </span>
                 </div>
                 <button
-                  onClick={() => removeDriver(trip)}
+                  onClick={() => requestRemoveDriver(trip)}
                   disabled={isLoading}
                   className="p-1.5 text-gray-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-50"
                   aria-label="Retirer le conducteur"
@@ -404,7 +431,7 @@ export function DayDetail({
                       {passenger.child.first_name} {passenger.child.last_name}
                     </span>
                     <button
-                      onClick={() => removePassenger(trip, passenger)}
+                      onClick={() => requestRemovePassenger(trip, passenger)}
                       className="text-gray-400 hover:text-danger transition-colors"
                     >
                       <X className="w-4 h-4" />
@@ -467,7 +494,7 @@ export function DayDetail({
                   Confirmer
                 </button>
                 <button
-                  onClick={() => cancelTrip(trip)}
+                  onClick={() => requestCancelTrip(trip)}
                   disabled={isLoading}
                   className="px-4 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -479,7 +506,7 @@ export function DayDetail({
             {trip.status === "confirmed" && (
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
                 <button
-                  onClick={() => cancelTrip(trip)}
+                  onClick={() => requestCancelTrip(trip)}
                   disabled={isLoading}
                   className="flex-1 py-2 text-danger hover:bg-danger/10 font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -539,6 +566,7 @@ export function DayDetail({
   }
 
   return (
+  <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -568,5 +596,17 @@ export function DayDetail({
         </div>
       )}
     </Modal>
+
+    <ConfirmModal
+      isOpen={confirmAction !== null}
+      onClose={() => setConfirmAction(null)}
+      onConfirm={() => confirmAction?.onConfirm()}
+      title={confirmAction?.title || ""}
+      message={confirmAction?.message || ""}
+      confirmLabel={confirmAction?.type === "cancelTrip" ? "Annuler le trajet" : "Confirmer"}
+      variant={confirmAction?.type === "cancelTrip" ? "danger" : "warning"}
+      isLoading={isLoading}
+    />
+  </>
   );
 }
