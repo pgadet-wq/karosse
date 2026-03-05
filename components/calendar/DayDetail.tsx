@@ -78,7 +78,7 @@ export function DayDetail({
   const [confirmAction, setConfirmAction] = useState<{
     type: "cancelTrip" | "removeDriver" | "removePassenger";
     title: string;
-    message: string;
+    message: React.ReactNode;
     onConfirm: () => Promise<void>;
   } | null>(null);
 
@@ -197,10 +197,11 @@ export function DayDetail({
 
   function requestRemovePassenger(trip: Trip, passenger: TripPassenger) {
     const childName = `${passenger.child.first_name} ${passenger.child.last_name || ""}`.trim();
+    const directionLabel = trip.direction === "aller" ? "aller" : "retour";
     setConfirmAction({
       type: "removePassenger",
       title: "Retirer le passager",
-      message: `Voulez-vous retirer ${childName} de ce trajet ?`,
+      message: (<>Voulez-vous retirer {childName} du trajet <strong>{directionLabel}</strong> ?</>),
       onConfirm: async () => {
         setIsLoading(true);
         const supabase = createBrowserClient();
@@ -271,7 +272,7 @@ export function DayDetail({
     setConfirmAction({
       type: "cancelTrip",
       title: "Annuler le trajet",
-      message: `Voulez-vous annuler le trajet ${directionLabel} ? Tous les passagers seront notifiés.`,
+      message: (<>Voulez-vous annuler le trajet <strong>{directionLabel}</strong> ? Tous les passagers seront notifiés.</>),
       onConfirm: async () => {
         setIsLoading(true);
         const supabase = createBrowserClient();
@@ -316,10 +317,11 @@ export function DayDetail({
 
   function requestRemoveDriver(trip: Trip) {
     const driverName = trip.driver?.display_name || "le conducteur";
+    const directionLabel = trip.direction === "aller" ? "aller" : "retour";
     setConfirmAction({
       type: "removeDriver",
       title: "Retirer le conducteur",
-      message: `Voulez-vous retirer ${driverName} de ce trajet ? Les autres conducteurs seront notifiés.`,
+      message: (<>Voulez-vous retirer {driverName} du trajet <strong>{directionLabel}</strong> ? Les autres conducteurs seront notifiés.</>),
       onConfirm: async () => {
         setIsLoading(true);
         const supabase = createBrowserClient();
