@@ -154,9 +154,10 @@ export function DayDetail({
       toast.success("Conducteur assigné");
       setShowDriverSelect(null);
       router.refresh();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erreur assignDriver:", error);
-      const message = error instanceof Error ? error.message : "Une erreur est survenue";
+      const err = error as { message?: string; details?: string; hint?: string };
+      const message = err.message || err.details || err.hint || "Une erreur est survenue";
       toast.error(message);
     } finally {
       setIsLoading(false);
