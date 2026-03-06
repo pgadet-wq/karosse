@@ -34,11 +34,13 @@ export default async function GroupPage() {
   }
 
   // Get user's member info
-  const { data: currentMember } = await supabase
+  const { data: membersList } = await supabase
     .from("members")
     .select("id, group_id, display_name, role")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
+
+  const currentMember = membersList?.[0];
 
   if (!currentMember) {
     redirect("/onboarding");

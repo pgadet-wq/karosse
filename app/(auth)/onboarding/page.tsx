@@ -51,14 +51,13 @@ function OnboardingContent() {
       setUserId(user.id);
 
       // Check if user already has a member profile
-      const { data: member } = await supabase
+      const { data: members } = await supabase
         .from("members")
         .select("id")
         .eq("user_id", user.id)
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (member) {
+      if (members && members.length > 0) {
         router.push("/calendar");
         return;
       }

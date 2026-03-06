@@ -20,11 +20,13 @@ export default async function ProfilePage() {
   }
 
   // Get member info with driver status
-  const { data: member } = await supabase
+  const { data: members } = await supabase
     .from("members")
     .select("id, display_name, is_driver, group_id")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
+
+  const member = members?.[0];
 
   // Get driver info if exists
   let driverId: string | null = null;

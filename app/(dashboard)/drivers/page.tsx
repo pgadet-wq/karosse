@@ -39,11 +39,13 @@ export default async function DriversPage() {
   }
 
   // Get user's member info and group
-  const { data: currentMember } = await supabase
+  const { data: members } = await supabase
     .from("members")
     .select("id, group_id, display_name, is_driver")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
+
+  const currentMember = members?.[0];
 
   if (!currentMember) {
     redirect("/onboarding");

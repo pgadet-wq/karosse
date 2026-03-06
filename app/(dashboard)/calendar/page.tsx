@@ -71,12 +71,14 @@ export default async function CalendarPage() {
     redirect("/login");
   }
 
-  // Get user's member info including role
-  const { data: currentMember } = await supabase
+  // Get user's member info including role (take first group if multiple)
+  const { data: members } = await supabase
     .from("members")
     .select("id, group_id, display_name, role")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
+
+  const currentMember = members?.[0];
 
   if (!currentMember) {
     redirect("/onboarding");
