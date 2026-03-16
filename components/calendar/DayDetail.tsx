@@ -19,46 +19,15 @@ import toast from "react-hot-toast";
 import { Modal, Avatar, ConfirmModal } from "@/components/ui";
 import { formatDateFr, getDayStatus } from "@/lib/calendar-utils";
 import { createBrowserClient } from "@/lib/supabase/client";
-
-interface Driver {
-  id: string;
-  member_id: string;
-  display_name: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  max_passengers: number;
-}
-
-interface Child {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-}
-
-interface TripPassenger {
-  id: string;
-  child: Child;
-  status: "confirmed" | "pending" | "cancelled";
-}
-
-interface Trip {
-  id: string;
-  date: string;
-  direction: "aller" | "retour";
-  status: "confirmed" | "planned" | "cancelled" | "unassigned";
-  departure_time: string | null;
-  available_seats: number;
-  driver?: Driver;
-  passengers: TripPassenger[];
-}
+import type { CalendarTrip, CalendarDriver, CalendarChild, CalendarTripPassenger } from "@/types";
 
 interface DayDetailProps {
   isOpen: boolean;
   onClose: () => void;
   date: Date;
-  trips: Trip[];
-  drivers: Driver[];
-  groupChildren: Child[];
+  trips: CalendarTrip[];
+  drivers: CalendarDriver[];
+  groupChildren: CalendarChild[];
   groupId: string;
 }
 
@@ -75,6 +44,8 @@ export function DayDetail({
   const [isLoading, setIsLoading] = useState(false);
   const [showDriverSelect, setShowDriverSelect] = useState<"aller" | "retour" | null>(null);
   const [showChildSelect, setShowChildSelect] = useState<string | null>(null);
+  const [editingTime, setEditingTime] = useState<string | null>(null);
+  const [timeValue, setTimeValue] = useState("");
   const [confirmAction, setConfirmAction] = useState<{
     type: "cancelTrip" | "removeDriver" | "removePassenger";
     title: string;
@@ -88,7 +59,7 @@ export function DayDetail({
   const allerTrip = trips.find((t) => t.direction === "aller");
   const retourTrip = trips.find((t) => t.direction === "retour");
 
-  function getStatusBadge(status: Trip["status"]) {
+  function getStatusBadge(status: CalendarTrip["status"]) {
     switch (status) {
       case "confirmed":
         return (
@@ -158,6 +129,23 @@ export function DayDetail({
         if (error) throw error;
       }
 
+      // Notify group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "driver_assigned",
+            tripDate: dateStr,
+            tripDirection: direction === "aller" ? "to_school" : "from_school",
+            driverName: driver.display_name || "Un conducteur",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
+
       toast.success("Conducteur assigné");
       setShowDriverSelect(null);
       router.refresh();
@@ -166,6 +154,35 @@ export function DayDetail({
       const err = error as { message?: string; details?: string; hint?: string };
       const message = err.message || err.details || err.hint || "Une erreur est survenue";
       toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function changeDriver(direction: "aller" | "retour") {
+    setShowDriverSelect(direction);
+  }
+
+  async function updateDepartureTime(tripId: string) {
+    if (!timeValue) return;
+    setIsLoading(true);
+    const supabase = createBrowserClient();
+
+    try {
+      const { error } = await supabase
+        .from("trips")
+        .update({ departure_time: timeValue })
+        .eq("id", tripId);
+
+      if (error) throw error;
+
+      toast.success("Heure de départ modifiée");
+      setEditingTime(null);
+      setTimeValue("");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Une erreur est survenue");
     } finally {
       setIsLoading(false);
     }
@@ -195,7 +212,7 @@ export function DayDetail({
     }
   }
 
-  function requestRemovePassenger(trip: Trip, passenger: TripPassenger) {
+  function requestRemovePassenger(trip: CalendarTrip, passenger: CalendarTripPassenger) {
     const childName = `${passenger.child.first_name} ${passenger.child.last_name || ""}`.trim();
     const directionLabel = trip.direction === "aller" ? "aller" : "retour";
     setConfirmAction({
@@ -244,7 +261,7 @@ export function DayDetail({
     });
   }
 
-  async function confirmTrip(tripId: string) {
+  async function confirmTrip(trip: CalendarTrip) {
     setIsLoading(true);
     const supabase = createBrowserClient();
 
@@ -252,9 +269,25 @@ export function DayDetail({
       const { error } = await supabase
         .from("trips")
         .update({ status: "confirmed" })
-        .eq("id", tripId);
+        .eq("id", trip.id);
 
       if (error) throw error;
+
+      // Notify group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "trip_confirmed",
+            tripDate: trip.date,
+            tripDirection: trip.direction === "aller" ? "to_school" : "from_school",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
 
       toast.success("Trajet confirmé");
       router.refresh();
@@ -267,7 +300,7 @@ export function DayDetail({
     }
   }
 
-  function requestCancelTrip(trip: Trip) {
+  function requestCancelTrip(trip: CalendarTrip) {
     const directionLabel = trip.direction === "aller" ? "aller" : "retour";
     setConfirmAction({
       type: "cancelTrip",
@@ -315,7 +348,7 @@ export function DayDetail({
     });
   }
 
-  function requestRemoveDriver(trip: Trip) {
+  function requestRemoveDriver(trip: CalendarTrip) {
     const driverName = trip.driver?.display_name || "le conducteur";
     const directionLabel = trip.direction === "aller" ? "aller" : "retour";
     setConfirmAction({
@@ -365,7 +398,7 @@ export function DayDetail({
     });
   }
 
-  function renderTrip(trip: Trip | undefined, direction: "aller" | "retour") {
+  function renderTrip(trip: CalendarTrip | undefined, direction: "aller" | "retour") {
     const label = direction === "aller" ? "Aller" : "Retour";
     const icon = direction === "aller" ? "→" : "←";
 
@@ -406,6 +439,14 @@ export function DayDetail({
                   </span>
                 </div>
                 <button
+                  onClick={() => changeDriver(direction)}
+                  disabled={isLoading}
+                  className="px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="Changer le conducteur"
+                >
+                  Changer
+                </button>
+                <button
                   onClick={() => requestRemoveDriver(trip)}
                   disabled={isLoading}
                   className="p-1.5 text-gray-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-50"
@@ -414,6 +455,47 @@ export function DayDetail({
                   <UserMinus className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Departure time */}
+            <div className="flex items-center gap-2 mb-3 text-sm">
+              <Clock className="w-4 h-4 text-gray-400" />
+              {editingTime === trip.id ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="time"
+                    value={timeValue}
+                    onChange={(e) => setTimeValue(e.target.value)}
+                    className="input py-1 px-2 text-sm flex-1"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => updateDepartureTime(trip.id)}
+                    disabled={isLoading || !timeValue}
+                    className="px-2 py-1 bg-primary text-white text-xs rounded-lg disabled:opacity-50"
+                  >
+                    OK
+                  </button>
+                  <button
+                    onClick={() => { setEditingTime(null); setTimeValue(""); }}
+                    className="px-2 py-1 text-gray-500 text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setEditingTime(trip.id);
+                    setTimeValue(trip.departure_time || "");
+                  }}
+                  className="text-gray-600 hover:text-primary transition-colors"
+                >
+                  {trip.departure_time
+                    ? `Départ à ${trip.departure_time.slice(0, 5)}`
+                    : "Ajouter l'heure de départ"}
+                </button>
+              )}
             </div>
 
             {/* Passengers */}
@@ -484,11 +566,43 @@ export function DayDetail({
               </>
             )}
 
+            {/* Driver select for changing driver */}
+            {showDriverSelect === direction && (
+              <div className="space-y-2 mb-3 p-3 bg-white rounded-lg border border-primary/20">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Changer le conducteur</p>
+                {drivers.map((driver) => (
+                  <button
+                    key={driver.id}
+                    onClick={() => assignDriver(direction, driver.id)}
+                    disabled={isLoading}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Avatar name={driver.display_name || "Conducteur"} size="sm" />
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900 text-sm">
+                        {driver.display_name || "Conducteur"}
+                      </p>
+                      {driver.vehicle_model && (
+                        <p className="text-xs text-gray-500">{driver.vehicle_model}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400">{driver.max_passengers} places</span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => setShowDriverSelect(null)}
+                  className="w-full text-sm text-gray-500 py-1"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+
             {/* Action buttons */}
             {trip.status === "planned" && (
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
                 <button
-                  onClick={() => confirmTrip(trip.id)}
+                  onClick={() => confirmTrip(trip)}
                   disabled={isLoading}
                   className="flex-1 flex items-center justify-center gap-2 py-2 bg-success text-white font-medium rounded-lg hover:bg-success/90 transition-colors disabled:opacity-50"
                 >

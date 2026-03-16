@@ -2,22 +2,13 @@
 
 import { X, Car, Users, Check } from "lucide-react";
 import { Avatar } from "@/components/ui";
-
-interface Driver {
-  id: string;
-  member_id: string;
-  display_name: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  max_passengers: number;
-  available_days: string[];
-}
+import type { CalendarDriver } from "@/types";
 
 interface DriverSelectProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (driverId: string) => void;
-  drivers: Driver[];
+  drivers: CalendarDriver[];
   weekStats: Map<string, { aller: number; retour: number; total: number }>;
   selectedDriverId?: string;
   dayKey: string;

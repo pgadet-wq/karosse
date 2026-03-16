@@ -220,7 +220,6 @@ export default async function CalendarPage() {
       drivers={drivers}
       groupChildren={groupChildren}
       groupId={currentMember.group_id}
-      isAdmin={currentMember.role === "admin"}
       rawTrips={rawTrips}
     />
   );

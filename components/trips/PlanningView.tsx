@@ -22,16 +22,8 @@ import {
 } from "@/lib/rotation";
 import { isSchoolDay, formatDateFr } from "@/lib/calendar-utils";
 import { createBrowserClient } from "@/lib/supabase/client";
-
-interface Driver {
-  id: string;
-  member_id: string;
-  display_name: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  max_passengers: number;
-  available_days: string[];
-}
+import type { CalendarDriver, RawTrip } from "@/types";
+import { DAY_KEYS, DAY_LABELS } from "@/lib/constants";
 
 interface Assignment {
   date: Date;
@@ -40,25 +32,14 @@ interface Assignment {
   driverName: string | null;
 }
 
-interface ExistingTrip {
-  id: string;
-  date: string;
-  direction: string;
-  driver_id: string | null;
-  status: string;
-}
-
 interface PlanningViewProps {
   isOpen: boolean;
   onClose: () => void;
   weekStart: Date;
-  drivers: Driver[];
+  drivers: CalendarDriver[];
   groupId: string;
-  existingTrips: ExistingTrip[];
+  existingTrips: RawTrip[];
 }
-
-const DAY_KEYS = ["lun", "mar", "mer", "jeu", "ven"];
-const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven"];
 
 export function PlanningView({
   isOpen,

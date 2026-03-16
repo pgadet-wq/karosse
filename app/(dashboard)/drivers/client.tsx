@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Plus, Car, Users, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { PageShell } from "@/components/layout";
-import { Modal, Avatar, EmptyState } from "@/components/ui";
+import { Modal, Avatar, EmptyState, ConfirmModal } from "@/components/ui";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { DAY_OPTIONS } from "@/lib/constants";
 
 interface Driver {
   id: string;
@@ -15,6 +16,7 @@ interface Driver {
   vehicle_color: string | null;
   license_plate: string | null;
   max_passengers: number;
+  available_days: string[];
   is_active: boolean;
   members: {
     id: string;
@@ -37,35 +39,36 @@ interface DriversClientProps {
   userId: string;
 }
 
-const DAYS = [
-  { key: "lun", label: "Lun" },
-  { key: "mar", label: "Mar" },
-  { key: "mer", label: "Mer" },
-  { key: "jeu", label: "Jeu" },
-  { key: "ven", label: "Ven" },
-];
-
 export function DriversClient({ drivers, currentMember, userId }: DriversClientProps) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Form state
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
   const [maxPassengers, setMaxPassengers] = useState(4);
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
 
   // Check if current user is already a driver
   const currentUserDriver = drivers.find(
     (d) => d.members.user_id === userId
   );
 
+  function toggleDay(key: string) {
+    setAvailableDays((prev) =>
+      prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
+    );
+  }
+
   function openAddModal() {
     setEditingDriver(null);
     setVehicleModel("");
     setVehicleColor("");
     setMaxPassengers(4);
+    setAvailableDays([]);
     setIsModalOpen(true);
   }
 
@@ -74,6 +77,7 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
     setVehicleModel(driver.vehicle_model || "");
     setVehicleColor(driver.vehicle_color || "");
     setMaxPassengers(driver.max_passengers);
+    setAvailableDays(driver.available_days || []);
     setIsModalOpen(true);
   }
 
@@ -92,6 +96,7 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
             vehicle_model: vehicleModel || null,
             vehicle_color: vehicleColor || null,
             max_passengers: maxPassengers,
+            available_days: availableDays,
           })
           .eq("id", editingDriver.id);
 
@@ -104,6 +109,7 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
           vehicle_model: vehicleModel || null,
           vehicle_color: vehicleColor || null,
           max_passengers: maxPassengers,
+          available_days: availableDays,
         });
 
         if (error) throw error;
@@ -127,11 +133,16 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!editingDriver) return;
-    if (!confirm("Supprimer ce conducteur ?")) return;
+    setConfirmDelete(true);
+  }
+
+  async function executeDelete() {
+    if (!editingDriver) return;
 
     setIsLoading(true);
+    setConfirmDelete(false);
     const supabase = createBrowserClient();
 
     try {
@@ -197,6 +208,9 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
             const vehicleDesc = [driver.vehicle_model, driver.vehicle_color]
               .filter(Boolean)
               .join(" ");
+            const driverDays = driver.available_days.length > 0
+              ? driver.available_days
+              : DAY_OPTIONS.map((d) => d.key);
 
             return (
               <button
@@ -236,10 +250,14 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
 
                       {/* Days badges */}
                       <div className="flex gap-1">
-                        {DAYS.map((day) => (
+                        {DAY_OPTIONS.map((day) => (
                           <span
                             key={day.key}
-                            className="px-1.5 py-0.5 text-xs font-medium rounded bg-primary/10 text-primary"
+                            className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                              driverDays.includes(day.key)
+                                ? "bg-primary/10 text-primary"
+                                : "bg-gray-100 text-gray-300"
+                            }`}
                           >
                             {day.label}
                           </span>
@@ -306,6 +324,27 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
             </div>
           </div>
 
+          <div>
+            <label className="label">Jours de disponibilité</label>
+            <p className="text-xs text-gray-500 mb-2">Laissez vide pour tous les jours</p>
+            <div className="flex gap-2">
+              {DAY_OPTIONS.map((day) => (
+                <button
+                  key={day.key}
+                  type="button"
+                  onClick={() => toggleDay(day.key)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    availableDays.includes(day.key)
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {day.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-4">
             {editingDriver && (
               <button
@@ -334,6 +373,18 @@ export function DriversClient({ drivers, currentMember, userId }: DriversClientP
           </div>
         </form>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={executeDelete}
+        title="Supprimer le conducteur"
+        message="Cette action est irréversible. Le conducteur sera retiré du groupe."
+        confirmLabel="Supprimer"
+        variant="danger"
+        isLoading={isLoading}
+      />
     </PageShell>
   );
 }

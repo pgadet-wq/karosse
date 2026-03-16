@@ -14,6 +14,7 @@ interface DriverData {
   vehicle_color: string | null;
   license_plate: string | null;
   max_passengers: number;
+  available_days: string[];
   is_active: boolean;
   members: {
     id: string;
@@ -61,6 +62,7 @@ export default async function DriversPage() {
       vehicle_color,
       license_plate,
       max_passengers,
+      available_days,
       is_active,
       members!inner (
         id,
@@ -79,6 +81,7 @@ export default async function DriversPage() {
     vehicle_color: d.vehicle_color,
     license_plate: d.license_plate,
     max_passengers: d.max_passengers,
+    available_days: d.available_days || [],
     is_active: d.is_active,
     members: Array.isArray(d.members) ? d.members[0] : d.members,
   }));

@@ -24,7 +24,7 @@ function configureVapid() {
 
 interface NotifyGroupPayload {
   groupId: string;
-  type: "driver_removed" | "child_removed" | "trip_cancelled";
+  type: "driver_removed" | "child_removed" | "trip_cancelled" | "driver_assigned" | "trip_confirmed";
   tripDate: string;
   tripDirection: string;
   driverName?: string;
@@ -70,55 +70,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not a member of this group" }, { status: 403 });
     }
 
-    // Get all drivers in the group with their user IDs
-    const { data: groupDrivers } = await supabase
-      .from("drivers")
-      .select(`
-        id,
-        members!inner (
-          id,
-          user_id,
-          group_id
-        )
-      `)
-      .eq("members.group_id", payload.groupId)
-      .eq("is_active", true);
+    // Get all members in the group with their user IDs
+    const { data: groupMembers } = await supabase
+      .from("members")
+      .select("id, user_id")
+      .eq("group_id", payload.groupId);
 
-    if (!groupDrivers || groupDrivers.length === 0) {
+    if (!groupMembers || groupMembers.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
-        message: "No drivers in group",
+        message: "No members in group",
       });
     }
 
     // Extract user IDs (excluding the current user who triggered the action)
-    const driverUserIds = groupDrivers
-      .map((d) => {
-        const member = d.members as unknown as { user_id: string };
-        return member?.user_id;
-      })
+    const memberUserIds = groupMembers
+      .map((m) => m.user_id)
       .filter((id): id is string => id !== null && id !== user.id);
 
-    if (driverUserIds.length === 0) {
+    if (memberUserIds.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
-        message: "No other drivers to notify",
+        message: "No other members to notify",
       });
     }
 
-    // Get push subscriptions for drivers
+    // Get push subscriptions for all group members
     const { data: subscriptions } = await supabase
       .from("push_subscriptions")
       .select("*")
-      .in("user_id", driverUserIds);
+      .in("user_id", memberUserIds);
 
     if (!subscriptions || subscriptions.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
-        message: "No subscriptions found for drivers",
+        message: "No subscriptions found for members",
       });
     }
 
@@ -145,6 +134,14 @@ export async function POST(request: NextRequest) {
       case "trip_cancelled":
         title = "Trajet annulé";
         body = `Le trajet ${directionLabel} du ${dateFormatted} a été annulé.`;
+        break;
+      case "driver_assigned":
+        title = "Conducteur assigné";
+        body = `${payload.driverName || "Un conducteur"} assure le trajet ${directionLabel} du ${dateFormatted}.`;
+        break;
+      case "trip_confirmed":
+        title = "Trajet confirmé";
+        body = `Le trajet ${directionLabel} du ${dateFormatted} est confirmé.`;
         break;
     }
 

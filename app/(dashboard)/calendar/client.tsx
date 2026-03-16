@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfWeek, addWeeks } from "date-fns";
 import { Calendar } from "lucide-react";
@@ -11,63 +11,13 @@ import { PlanningView } from "@/components/trips";
 import { PullToRefresh, EmptyState } from "@/components/ui";
 import { getCurrentPeriod, formatDateFr } from "@/lib/calendar-utils";
 import { createBrowserClient } from "@/lib/supabase/client";
-
-interface Driver {
-  id: string;
-  member_id: string;
-  display_name: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  max_passengers: number;
-  available_days: string[];
-}
-
-interface TripDriver {
-  id: string;
-  member_id: string;
-  display_name: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  max_passengers: number;
-}
-
-interface Child {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-}
-
-interface TripPassenger {
-  id: string;
-  status: "confirmed" | "pending" | "cancelled";
-  child: Child;
-}
-
-interface Trip {
-  id: string;
-  date: string;
-  direction: "aller" | "retour";
-  status: "confirmed" | "planned" | "cancelled" | "unassigned";
-  departure_time: string | null;
-  available_seats: number;
-  driver?: TripDriver;
-  passengers: TripPassenger[];
-}
-
-interface RawTrip {
-  id: string;
-  date: string;
-  direction: string;
-  driver_id: string | null;
-  status: string;
-}
+import type { CalendarTrip, CalendarDriver, CalendarChild, RawTrip } from "@/types";
 
 interface CalendarClientProps {
-  trips: Trip[];
-  drivers: Driver[];
-  groupChildren: Child[];
+  trips: CalendarTrip[];
+  drivers: CalendarDriver[];
+  groupChildren: CalendarChild[];
   groupId: string;
-  isAdmin: boolean;
   rawTrips: RawTrip[];
 }
 
@@ -76,7 +26,6 @@ export function CalendarClient({
   drivers,
   groupChildren,
   groupId,
-  isAdmin,
   rawTrips,
 }: CalendarClientProps) {
   const router = useRouter();
@@ -87,6 +36,7 @@ export function CalendarClient({
   );
   const [localTrips, setLocalTrips] = useState(trips);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const periodInfo = getCurrentPeriod(new Date());
 
@@ -120,16 +70,24 @@ export function CalendarClient({
           filter: `group_id=eq.${groupId}`,
         },
         () => {
-          // Refresh the page to get updated data
-          window.location.reload();
+          // Debounce to avoid rapid successive refreshes
+          if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+          }
+          refreshTimeoutRef.current = setTimeout(() => {
+            router.refresh();
+          }, 500);
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
-  }, [groupId]);
+  }, [groupId, router]);
 
   // Update local trips when props change
   useEffect(() => {
@@ -180,16 +138,14 @@ export function CalendarClient({
     <PageShell
       title="Calendrier"
       action={
-        isAdmin ? (
-          <button
-            onClick={() => setShowPlanning(true)}
-            className="flex items-center gap-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label="Planifier les trajets"
-          >
-            <Calendar className="w-4 h-4" aria-hidden="true" />
-            Planifier
-          </button>
-        ) : undefined
+        <button
+          onClick={() => setShowPlanning(true)}
+          className="flex items-center gap-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          aria-label="Planifier les trajets"
+        >
+          <Calendar className="w-4 h-4" aria-hidden="true" />
+          Planifier
+        </button>
       }
     >
       <PullToRefresh onRefresh={handleRefresh} disabled={isRefreshing}>
@@ -212,7 +168,7 @@ export function CalendarClient({
           />
 
           {/* Empty state for no trips */}
-          {hasNoTrips && isAdmin && (
+          {hasNoTrips && (
             <div className="bg-white rounded-xl shadow-sm">
               <EmptyState
                 type="calendar"

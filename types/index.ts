@@ -35,6 +35,7 @@ export interface Driver {
   vehicle_color: string | null;
   license_plate: string | null;
   max_passengers: number;
+  available_days: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -66,12 +67,12 @@ export interface SchoolCalendarDay {
 export interface Trip {
   id: string;
   group_id: string;
-  driver_id: string;
+  driver_id: string | null;
   date: string; // YYYY-MM-DD
   direction: "to_school" | "from_school";
-  departure_time: string; // HH:MM:SS
+  departure_time: string | null; // HH:MM:SS
   available_seats: number;
-  status: "scheduled" | "confirmed" | "in_progress" | "completed" | "cancelled";
+  status: "planned" | "unassigned" | "confirmed" | "cancelled";
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -156,3 +157,48 @@ export type TripUpdate = Partial<Pick<Trip, "departure_time" | "available_seats"
 
 export type TripPassengerCreate = Pick<TripPassenger, "trip_id" | "child_id"> & Partial<Pick<TripPassenger, "pickup_address" | "dropoff_address">>;
 export type TripPassengerUpdate = Partial<Pick<TripPassenger, "status" | "pickup_address" | "dropoff_address">>;
+
+// ============================================================================
+// CALENDAR VIEW TYPES - Shaped for the calendar UI components
+// ============================================================================
+
+export interface CalendarDriver {
+  id: string;
+  member_id: string;
+  display_name: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
+  max_passengers: number;
+  available_days: string[];
+}
+
+export interface CalendarChild {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+}
+
+export interface CalendarTripPassenger {
+  id: string;
+  status: "confirmed" | "pending" | "cancelled";
+  child: CalendarChild;
+}
+
+export interface CalendarTrip {
+  id: string;
+  date: string;
+  direction: "aller" | "retour";
+  status: "confirmed" | "planned" | "cancelled" | "unassigned";
+  departure_time: string | null;
+  available_seats: number;
+  driver?: Omit<CalendarDriver, "available_days">;
+  passengers: CalendarTripPassenger[];
+}
+
+export interface RawTrip {
+  id: string;
+  date: string;
+  direction: string;
+  driver_id: string | null;
+  status: string;
+}

@@ -14,14 +14,9 @@ import {
   School,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { SCHOOLS } from "@/lib/constants";
 
 type Step = "name" | "choice" | "create" | "join";
-
-const SCHOOLS = [
-  { id: "mariotti", name: "Collège de Mariotti" },
-  { id: "pascal", name: "Lycée Blaise Pascal" },
-  { id: "both", name: "Les deux établissements" },
-];
 
 function OnboardingContent() {
   const router = useRouter();

@@ -18,8 +18,9 @@ import {
 import toast from "react-hot-toast";
 import QRCode from "qrcode";
 import { PageShell } from "@/components/layout";
-import { Modal, Avatar } from "@/components/ui";
+import { Modal, Avatar, ConfirmModal } from "@/components/ui";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { SCHOOLS } from "@/lib/constants";
 
 interface Group {
   id: string;
@@ -58,11 +59,6 @@ interface GroupClientProps {
   userId: string;
 }
 
-const SCHOOLS = [
-  { id: "mariotti", name: "Collège de Mariotti" },
-  { id: "pascal", name: "Lycée Blaise Pascal" },
-];
-
 export function GroupClient({
   group,
   members,
@@ -77,6 +73,8 @@ export function GroupClient({
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [confirmDeleteChild, setConfirmDeleteChild] = useState(false);
 
   // Child form state
   const [childFirstName, setChildFirstName] = useState("");
@@ -198,11 +196,16 @@ export function GroupClient({
     }
   }
 
-  async function handleDeleteChild() {
+  function handleDeleteChild() {
     if (!editingChild) return;
-    if (!confirm(`Supprimer ${editingChild.first_name} ?`)) return;
+    setConfirmDeleteChild(true);
+  }
+
+  async function executeDeleteChild() {
+    if (!editingChild) return;
 
     setIsLoading(true);
+    setConfirmDeleteChild(false);
     const supabase = createBrowserClient();
 
     try {
@@ -510,6 +513,18 @@ export function GroupClient({
           </p>
         </div>
       </Modal>
+
+      {/* Delete Child Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmDeleteChild}
+        onClose={() => setConfirmDeleteChild(false)}
+        onConfirm={executeDeleteChild}
+        title="Supprimer l'enfant"
+        message={`Supprimer ${editingChild?.first_name || ""} ? Cette action est irréversible.`}
+        confirmLabel="Supprimer"
+        variant="danger"
+        isLoading={isLoading}
+      />
     </PageShell>
   );
 }

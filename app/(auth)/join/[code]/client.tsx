@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users, Mail, Loader2, CheckCircle, School } from "lucide-react";
+import { Users, Mail, Lock, Loader2, CheckCircle, School } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 interface JoinGroupClientProps {
@@ -16,16 +16,17 @@ interface JoinGroupClientProps {
 
 export function JoinGroupClient({ group, code }: JoinGroupClientProps) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"magic" | "password">("magic");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    // Store the join code for after login
     localStorage.setItem("karosse_join_code", code);
 
     const supabase = createBrowserClient();
@@ -44,6 +45,28 @@ export function JoinGroupClient({ group, code }: JoinGroupClientProps) {
       setError(authError.message);
     } else {
       setSuccess(true);
+    }
+  }
+
+  async function handlePasswordLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    const supabase = createBrowserClient();
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setIsLoading(false);
+
+    if (authError) {
+      setError("Email ou mot de passe incorrect");
+    } else {
+      // Redirect to join page — server will auto-join
+      window.location.href = `/join/${code}`;
     }
   }
 
@@ -93,9 +116,32 @@ export function JoinGroupClient({ group, code }: JoinGroupClientProps) {
               <h3 className="text-lg font-semibold text-center text-gray-900 mb-2">
                 Rejoindre ce groupe
               </h3>
-              <p className="text-gray-600 text-center text-sm mb-6">
-                Connectez-vous pour rejoindre le groupe de covoiturage
-              </p>
+
+              {/* Mode toggle */}
+              <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
+                <button
+                  type="button"
+                  onClick={() => { setMode("magic"); setError(null); }}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    mode === "magic"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Nouveau membre
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode("password"); setError(null); }}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    mode === "password"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  J&apos;ai un compte
+                </button>
+              </div>
 
               {error && (
                 <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger text-sm mb-4">
@@ -103,45 +149,113 @@ export function JoinGroupClient({ group, code }: JoinGroupClientProps) {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="label">
-                    Votre email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      placeholder="votre@email.com"
-                      className="input pl-10"
-                      disabled={isLoading}
-                      autoComplete="email"
-                    />
+              {mode === "magic" ? (
+                <form onSubmit={handleMagicLink} className="space-y-4">
+                  <p className="text-gray-600 text-center text-sm mb-2">
+                    Entrez votre email pour recevoir un lien de connexion
+                  </p>
+                  <div>
+                    <label htmlFor="email" className="label">
+                      Votre email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        placeholder="votre@email.com"
+                        className="input pl-10"
+                        disabled={isLoading}
+                        autoComplete="email"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading || !email}
-                  className="w-full py-3 px-4 bg-primary text-white font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Envoi en cours...
-                    </>
-                  ) : (
-                    "Se connecter pour rejoindre"
-                  )}
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    disabled={isLoading || !email}
+                    className="w-full py-3 px-4 bg-primary text-white font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Envoi en cours...
+                      </>
+                    ) : (
+                      "Envoyer le lien de connexion"
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handlePasswordLogin} className="space-y-4">
+                  <p className="text-gray-600 text-center text-sm mb-2">
+                    Connectez-vous avec votre compte existant
+                  </p>
+                  <div>
+                    <label htmlFor="login-email" className="label">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        id="login-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        placeholder="votre@email.com"
+                        className="input pl-10"
+                        disabled={isLoading}
+                        autoComplete="email"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="login-password" className="label">
+                      Mot de passe
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        id="login-password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        placeholder="Votre mot de passe"
+                        className="input pl-10"
+                        disabled={isLoading}
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || !email || !password}
+                    className="w-full py-3 px-4 bg-primary text-white font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Connexion...
+                      </>
+                    ) : (
+                      "Se connecter et rejoindre"
+                    )}
+                  </button>
+                </form>
+              )}
 
               <p className="text-center text-sm text-gray-500 mt-4">
-                Déjà connecté ?{" "}
+                <Link href="/inscription" className="text-secondary hover:underline">
+                  Créer un compte
+                </Link>
+                {" · "}
                 <Link href="/calendar" className="text-secondary hover:underline">
                   Accéder à l&apos;app
                 </Link>
