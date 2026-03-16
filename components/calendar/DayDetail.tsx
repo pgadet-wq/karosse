@@ -441,7 +441,7 @@ export function DayDetail({
                 <button
                   onClick={() => changeDriver(direction)}
                   disabled={isLoading}
-                  className="px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-secondary rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50"
                   aria-label="Changer le conducteur"
                 >
                   Changer
