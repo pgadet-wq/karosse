@@ -14,6 +14,9 @@ import {
   Loader2,
   Check,
   Shield,
+  LogOut,
+  UserPlus,
+  Camera,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import QRCode from "qrcode";
@@ -70,20 +73,29 @@ export function GroupClient({
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [confirmDeleteChild, setConfirmDeleteChild] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   // Child form state
   const [childFirstName, setChildFirstName] = useState("");
   const [childSchool, setChildSchool] = useState("");
   const [childGrade, setChildGrade] = useState("");
 
+  // Join group form state
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
+
   const inviteUrl = typeof window !== "undefined"
     ? `${window.location.origin}/join/${group.invite_code}`
     : "";
+
+  const isAdmin = currentMember.role === "admin";
+  const isOnlyAdmin = isAdmin && members.filter((m) => m.role === "admin").length === 1;
 
   // Generate QR code when modal opens
   useEffect(() => {
@@ -119,13 +131,11 @@ export function GroupClient({
           url: inviteUrl,
         });
       } catch (err) {
-        // User cancelled or error
         if ((err as Error).name !== "AbortError") {
           toast.error("Erreur lors du partage");
         }
       }
     } else {
-      // Fallback: copy link
       try {
         await navigator.clipboard.writeText(inviteUrl);
         toast.success("Lien copié !");
@@ -135,6 +145,102 @@ export function GroupClient({
     }
   }
 
+  // --- Leave group ---
+  async function executeLeaveGroup() {
+    setIsLoading(true);
+    setConfirmLeave(false);
+    const supabase = createBrowserClient();
+
+    try {
+      // Delete driver profile if exists
+      await supabase
+        .from("drivers")
+        .delete()
+        .eq("member_id", currentMember.id);
+
+      // Delete children
+      await supabase
+        .from("children")
+        .delete()
+        .eq("member_id", currentMember.id);
+
+      // Delete member
+      const { error } = await supabase
+        .from("members")
+        .delete()
+        .eq("id", currentMember.id);
+
+      if (error) throw error;
+
+      toast.success("Vous avez quitté le groupe");
+      router.push("/onboarding");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // --- Join another group ---
+  async function handleJoinGroup(e: React.FormEvent) {
+    e.preventDefault();
+    if (!joinCode.trim()) return;
+
+    setIsLoading(true);
+    setJoinError(null);
+    const supabase = createBrowserClient();
+
+    try {
+      const { data: targetGroup, error: groupError } = await supabase
+        .from("groups")
+        .select("id, name")
+        .eq("invite_code", joinCode.toUpperCase().trim())
+        .single();
+
+      if (groupError || !targetGroup) {
+        setJoinError("Code d'invitation invalide.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if already a member
+      const { data: existing } = await supabase
+        .from("members")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("group_id", targetGroup.id)
+        .single();
+
+      if (existing) {
+        setJoinError("Vous êtes déjà membre de ce groupe.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { error: memberError } = await supabase.from("members").insert({
+        user_id: userId,
+        group_id: targetGroup.id,
+        role: "member",
+        display_name: currentMember.display_name,
+      });
+
+      if (memberError) throw memberError;
+
+      toast.success(`Vous avez rejoint ${targetGroup.name}`);
+      setIsJoinModalOpen(false);
+      setJoinCode("");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // --- Children CRUD ---
   function openAddChildModal() {
     setEditingChild(null);
     setChildFirstName("");
@@ -146,7 +252,6 @@ export function GroupClient({
   function openEditChildModal(child: Child) {
     setEditingChild(child);
     setChildFirstName(child.first_name);
-    // Try to detect school from notes or grade
     setChildSchool(child.notes || "");
     setChildGrade(child.grade || "");
     setIsChildModalOpen(true);
@@ -161,7 +266,6 @@ export function GroupClient({
 
     try {
       if (editingChild) {
-        // Update existing child
         const { error } = await supabase
           .from("children")
           .update({
@@ -174,7 +278,6 @@ export function GroupClient({
         if (error) throw error;
         toast.success("Enfant modifié");
       } else {
-        // Create new child
         const { error } = await supabase.from("children").insert({
           member_id: currentMember.id,
           first_name: childFirstName.trim(),
@@ -284,6 +387,17 @@ export function GroupClient({
               QR Code
             </button>
           </div>
+        </section>
+
+        {/* Section: Join another group */}
+        <section className="bg-white rounded-xl shadow-sm p-4">
+          <button
+            onClick={() => { setIsJoinModalOpen(true); setJoinCode(""); setJoinError(null); }}
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-primary hover:text-primary transition-colors"
+          >
+            <UserPlus className="w-5 h-5" />
+            Rejoindre un autre groupe
+          </button>
         </section>
 
         {/* Section: Members */}
@@ -407,6 +521,23 @@ export function GroupClient({
             </div>
           )}
         </section>
+
+        {/* Section: Leave group */}
+        <section className="bg-white rounded-xl shadow-sm p-4">
+          <button
+            onClick={() => setConfirmLeave(true)}
+            disabled={isOnlyAdmin}
+            className="w-full flex items-center justify-center gap-2 py-3 text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <LogOut className="w-5 h-5" />
+            Quitter le groupe
+          </button>
+          {isOnlyAdmin && (
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Vous êtes le seul admin. Nommez un autre admin avant de quitter.
+            </p>
+          )}
+        </section>
       </div>
 
       {/* Add/Edit Child Modal */}
@@ -514,6 +645,55 @@ export function GroupClient({
         </div>
       </Modal>
 
+      {/* Join Group Modal */}
+      <Modal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        title="Rejoindre un groupe"
+      >
+        <form onSubmit={handleJoinGroup} className="space-y-4">
+          <div>
+            <label className="label">Code d&apos;invitation</label>
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setJoinError(null); }}
+              placeholder="Ex: J2QMVT"
+              className="input font-mono text-center text-lg tracking-widest uppercase"
+              maxLength={10}
+              autoFocus
+            />
+          </div>
+
+          {joinError && (
+            <p className="text-sm text-danger">{joinError}</p>
+          )}
+
+          <p className="text-xs text-gray-500 flex items-center gap-1.5">
+            <Camera className="w-4 h-4" />
+            Pour scanner un QR code, utilisez l&apos;appareil photo de votre téléphone
+          </p>
+
+          <button
+            type="submit"
+            disabled={isLoading || joinCode.trim().length < 4}
+            className="w-full py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Recherche...
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4" />
+                Rejoindre
+              </>
+            )}
+          </button>
+        </form>
+      </Modal>
+
       {/* Delete Child Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmDeleteChild}
@@ -522,6 +702,18 @@ export function GroupClient({
         title="Supprimer l'enfant"
         message={`Supprimer ${editingChild?.first_name || ""} ? Cette action est irréversible.`}
         confirmLabel="Supprimer"
+        variant="danger"
+        isLoading={isLoading}
+      />
+
+      {/* Leave Group Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        onConfirm={executeLeaveGroup}
+        title="Quitter le groupe"
+        message={`Vous allez quitter ${group.name}. Vos enfants et votre profil conducteur seront supprimés de ce groupe. Cette action est irréversible.`}
+        confirmLabel="Quitter"
         variant="danger"
         isLoading={isLoading}
       />
