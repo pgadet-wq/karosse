@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -23,8 +23,43 @@ import {
   unsubscribeFromPush,
   isSubscribed,
 } from "@/lib/notifications";
+import { createBrowserClient } from "@/lib/supabase/client";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
+
+interface NotificationPreferences {
+  trip_confirmed: boolean;
+  trip_update: boolean;
+  unassigned_reminder: boolean;
+}
+
+const DEFAULT_PREFERENCES: NotificationPreferences = {
+  trip_confirmed: true,
+  trip_update: true,
+  unassigned_reminder: true,
+};
+
+const NOTIFICATION_TYPES: {
+  key: keyof NotificationPreferences;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "trip_confirmed",
+    label: "Confirmations de trajet",
+    description: "Quand un trajet est confirmé par un membre",
+  },
+  {
+    key: "trip_update",
+    label: "Modifications de trajet",
+    description: "Changements de conducteur, annulations, passagers",
+  },
+  {
+    key: "unassigned_reminder",
+    label: "Trajet sans conducteur",
+    description: "Alerte 24h avant un trajet sans conducteur assigné",
+  },
+];
 
 export function NotificationsClient() {
   const router = useRouter();
@@ -32,6 +67,25 @@ export function NotificationsClient() {
   const [subscribed, setSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
+  const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
+  const [savingPref, setSavingPref] = useState<string | null>(null);
+
+  const loadPreferences = useCallback(async () => {
+    const supabase = createBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: member } = await supabase
+      .from("members")
+      .select("notification_preferences")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single();
+
+    if (member?.notification_preferences) {
+      setPreferences({ ...DEFAULT_PREFERENCES, ...member.notification_preferences });
+    }
+  }, []);
 
   // Check initial state
   useEffect(() => {
@@ -50,11 +104,12 @@ export function NotificationsClient() {
         setSubscribed(sub);
       }
 
+      await loadPreferences();
       setIsLoading(false);
     }
 
     checkState();
-  }, []);
+  }, [loadPreferences]);
 
   async function handleEnableNotifications() {
     setIsToggling(true);
@@ -113,11 +168,38 @@ export function NotificationsClient() {
     }
   }
 
+  async function togglePreference(key: keyof NotificationPreferences) {
+    const newValue = !preferences[key];
+    const newPrefs = { ...preferences, [key]: newValue };
+
+    setSavingPref(key);
+    setPreferences(newPrefs);
+
+    const supabase = createBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSavingPref(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("members")
+      .update({ notification_preferences: newPrefs })
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error saving preferences:", error);
+      setPreferences({ ...preferences });
+      toast.error("Erreur lors de la sauvegarde");
+    }
+
+    setSavingPref(null);
+  }
+
   async function handleTestNotification() {
     if (!subscribed) return;
 
     try {
-      // Show a local notification for testing
       if (Notification.permission === "granted") {
         new Notification("Test KAROSSE", {
           body: "Les notifications fonctionnent correctement !",
@@ -153,7 +235,6 @@ export function NotificationsClient() {
             {/* Main Status Card */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               {permission === "unsupported" ? (
-                /* Unsupported State */
                 <div className="text-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Smartphone className="w-8 h-8 text-gray-400" />
@@ -167,7 +248,6 @@ export function NotificationsClient() {
                   </p>
                 </div>
               ) : permission === "denied" ? (
-                /* Denied State */
                 <div className="text-center">
                   <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <BellOff className="w-8 h-8 text-danger" />
@@ -197,7 +277,6 @@ export function NotificationsClient() {
                   </div>
                 </div>
               ) : permission === "granted" ? (
-                /* Granted State */
                 <div>
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
@@ -222,7 +301,6 @@ export function NotificationsClient() {
                       </div>
                     </div>
 
-                    {/* Toggle Switch */}
                     <button
                       onClick={handleToggleSubscription}
                       disabled={isToggling}
@@ -246,7 +324,7 @@ export function NotificationsClient() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm text-success">
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Vous recevrez les rappels de trajets</span>
+                        <span>Vous recevrez les notifications activées ci-dessous</span>
                       </div>
 
                       <button
@@ -259,7 +337,6 @@ export function NotificationsClient() {
                   )}
                 </div>
               ) : (
-                /* Default State - Not Yet Asked */
                 <div className="text-center">
                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Bell className="w-8 h-8 text-primary" />
@@ -292,6 +369,46 @@ export function NotificationsClient() {
               )}
             </div>
 
+            {/* Notification Type Preferences */}
+            {permission === "granted" && subscribed && (
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="font-medium text-gray-900">
+                    Types de notifications
+                  </h3>
+                </div>
+                {NOTIFICATION_TYPES.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {item.label}
+                      </p>
+                      <p className="text-xs text-gray-500">{item.description}</p>
+                    </div>
+                    <button
+                      onClick={() => togglePreference(item.key)}
+                      disabled={savingPref === item.key}
+                      className={`relative w-10 h-6 rounded-full transition-colors ${
+                        preferences[item.key] ? "bg-success" : "bg-gray-300"
+                      } ${savingPref === item.key ? "opacity-50" : ""}`}
+                    >
+                      <div
+                        className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                        style={{
+                          transform: preferences[item.key]
+                            ? "translateX(18px)"
+                            : "translateX(2px)",
+                        }}
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Info Card */}
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex gap-3">
@@ -301,69 +418,13 @@ export function NotificationsClient() {
                     Quand serez-vous notifié ?
                   </p>
                   <ul className="space-y-1 list-disc list-inside">
-                    <li>La veille d&apos;un trajet que vous conduisez</li>
+                    <li>Quand un trajet est confirmé par un membre</li>
                     <li>Quand un trajet est annulé ou modifié</li>
-                    <li>Quand un nouveau membre rejoint le groupe</li>
+                    <li>24h avant un trajet sans conducteur assigné</li>
                   </ul>
                 </div>
               </div>
             </div>
-
-            {/* Notification Types */}
-            {permission === "granted" && subscribed && (
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="font-medium text-gray-900">
-                    Types de notifications
-                  </h3>
-                </div>
-                {[
-                  {
-                    label: "Rappels de trajets",
-                    description: "La veille de vos trajets",
-                    enabled: true,
-                  },
-                  {
-                    label: "Modifications",
-                    description: "Changements sur vos trajets",
-                    enabled: true,
-                  },
-                  {
-                    label: "Nouveaux membres",
-                    description: "Quand quelqu'un rejoint le groupe",
-                    enabled: true,
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {item.label}
-                      </p>
-                      <p className="text-xs text-gray-500">{item.description}</p>
-                    </div>
-                    <div
-                      className={`w-10 h-6 rounded-full ${
-                        item.enabled ? "bg-success" : "bg-gray-300"
-                      } relative`}
-                    >
-                      <div
-                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
-                          item.enabled ? "translate-x-4.5" : "translate-x-0.5"
-                        }`}
-                        style={{
-                          transform: item.enabled
-                            ? "translateX(18px)"
-                            : "translateX(2px)",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </>
         )}
       </div>

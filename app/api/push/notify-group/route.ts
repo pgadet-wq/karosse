@@ -24,16 +24,29 @@ function configureVapid() {
 
 interface NotifyGroupPayload {
   groupId: string;
-  type: "driver_removed" | "child_removed" | "trip_cancelled" | "driver_assigned" | "trip_confirmed";
+  type: "driver_removed" | "child_removed" | "trip_cancelled" | "driver_assigned" | "trip_confirmed" | "unassigned_reminder";
   tripDate: string;
   tripDirection: string;
   driverName?: string;
   childName?: string;
 }
 
+// Map notification event types to preference keys
+function getPreferenceKey(type: NotifyGroupPayload["type"]): string {
+  switch (type) {
+    case "trip_confirmed":
+      return "trip_confirmed";
+    case "unassigned_reminder":
+      return "unassigned_reminder";
+    default:
+      // driver_removed, child_removed, trip_cancelled, driver_assigned
+      return "trip_update";
+  }
+}
+
 /**
  * POST /api/push/notify-group
- * Notify all drivers in a group about trip changes
+ * Notify all members in a group about trip changes, respecting notification preferences
  */
 export async function POST(request: NextRequest) {
   try {
@@ -70,10 +83,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not a member of this group" }, { status: 403 });
     }
 
-    // Get all members in the group with their user IDs
+    // Get all members in the group with their user IDs and notification preferences
     const { data: groupMembers } = await supabase
       .from("members")
-      .select("id, user_id")
+      .select("id, user_id, notification_preferences")
       .eq("group_id", payload.groupId);
 
     if (!groupMembers || groupMembers.length === 0) {
@@ -84,20 +97,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Extract user IDs (excluding the current user who triggered the action)
-    const memberUserIds = groupMembers
+    // Filter members by notification preference for this event type
+    const prefKey = getPreferenceKey(payload.type);
+    const eligibleMembers = groupMembers.filter((m) => {
+      // Exclude the user who triggered the action
+      if (m.user_id === user.id) return false;
+      // Check notification preference (default to true if not set)
+      const prefs = m.notification_preferences as Record<string, boolean> | null;
+      if (!prefs) return true; // No preferences = all enabled
+      return prefs[prefKey] !== false;
+    });
+
+    const memberUserIds = eligibleMembers
       .map((m) => m.user_id)
-      .filter((id): id is string => id !== null && id !== user.id);
+      .filter((id): id is string => id !== null);
 
     if (memberUserIds.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
-        message: "No other members to notify",
+        message: "No eligible members to notify",
       });
     }
 
-    // Get push subscriptions for all group members
+    // Get push subscriptions for eligible members
     const { data: subscriptions } = await supabase
       .from("push_subscriptions")
       .select("*")
@@ -143,13 +166,17 @@ export async function POST(request: NextRequest) {
         title = "Trajet confirmé";
         body = `Le trajet ${directionLabel} du ${dateFormatted} est confirmé.`;
         break;
+      case "unassigned_reminder":
+        title = "Trajet sans conducteur";
+        body = `Le trajet ${directionLabel} de demain (${dateFormatted}) n'a pas de conducteur. Pouvez-vous assurer ce trajet ?`;
+        break;
     }
 
     const notificationPayload = JSON.stringify({
       title,
       body,
       url: `/calendar?date=${payload.tripDate}`,
-      type: "trip_update",
+      type: payload.type === "unassigned_reminder" ? "trip_reminder" : "trip_update",
     });
 
     // Send notifications
