@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import { getActiveGroupMember } from "@/lib/active-group";
 import { CalendarClient } from "./client";
 
 export const metadata: Metadata = {
@@ -71,14 +72,8 @@ export default async function CalendarPage() {
     redirect("/login");
   }
 
-  // Get user's member info including role (take first group if multiple)
-  const { data: members } = await supabase
-    .from("members")
-    .select("id, group_id, display_name, role")
-    .eq("user_id", user.id)
-    .limit(1);
-
-  const currentMember = members?.[0];
+  // Get user's active group member
+  const currentMember = await getActiveGroupMember(supabase, user.id);
 
   if (!currentMember) {
     redirect("/onboarding");

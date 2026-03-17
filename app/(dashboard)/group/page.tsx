@@ -23,7 +23,29 @@ interface ChildData {
   }[];
 }
 
-export default async function GroupPage() {
+interface MemberGroupData {
+  id: string;
+  group_id: string;
+  display_name: string | null;
+  role: string;
+  groups: {
+    id: string;
+    name: string;
+    school_name: string | null;
+    invite_code: string;
+  } | {
+    id: string;
+    name: string;
+    school_name: string | null;
+    invite_code: string;
+  }[];
+}
+
+export default async function GroupPage({
+  searchParams,
+}: {
+  searchParams: { group?: string };
+}) {
   const supabase = createServerClient();
 
   // Get current user
@@ -33,31 +55,67 @@ export default async function GroupPage() {
     redirect("/login");
   }
 
-  // Get user's member info
-  const { data: membersList } = await supabase
+  // Get ALL user's memberships with group info
+  const { data: allMemberships } = await supabase
     .from("members")
-    .select("id, group_id, display_name, role")
-    .eq("user_id", user.id)
-    .limit(1);
+    .select(`
+      id, group_id, display_name, role,
+      groups (id, name, school_name, invite_code)
+    `)
+    .eq("user_id", user.id);
 
-  const currentMember = membersList?.[0];
-
-  if (!currentMember) {
+  if (!allMemberships || allMemberships.length === 0) {
     redirect("/onboarding");
   }
+
+  // Build list of user's groups for the selector
+  const userGroups = (allMemberships as unknown as MemberGroupData[]).map((m) => {
+    const g = Array.isArray(m.groups) ? m.groups[0] : m.groups;
+    return {
+      id: g.id,
+      name: g.name,
+      school_name: g.school_name,
+      invite_code: g.invite_code,
+      memberId: m.id,
+      role: m.role,
+      display_name: m.display_name,
+    };
+  });
+
+  // Find the selected group (from query param, then cookie, then first)
+  const selectedGroupId = searchParams.group;
+  let activeGroupIndex = -1;
+
+  if (selectedGroupId) {
+    activeGroupIndex = userGroups.findIndex((g) => g.id === selectedGroupId);
+  }
+
+  if (activeGroupIndex < 0) {
+    // Try cookie
+    const { cookies } = await import("next/headers");
+    const cookieGroupId = cookies().get("karosse_active_group")?.value;
+    if (cookieGroupId) {
+      activeGroupIndex = userGroups.findIndex((g) => g.id === cookieGroupId);
+    }
+  }
+
+  if (activeGroupIndex < 0) activeGroupIndex = 0;
+
+  const activeGroup = userGroups[activeGroupIndex];
+  const currentMember = allMemberships[activeGroupIndex];
 
   // Get group info
   const { data: group } = await supabase
     .from("groups")
     .select("id, name, school_name, invite_code")
-    .eq("id", currentMember.group_id)
+    .eq("id", activeGroup.id)
     .single();
 
   // Get all members in the group
   const { data: members } = await supabase
     .from("members")
     .select("id, user_id, display_name, role, phone, is_driver")
-    .eq("group_id", currentMember.group_id)
+    .eq("group_id", activeGroup.id)
     .order("role", { ascending: true })
     .order("display_name", { ascending: true });
 
@@ -94,8 +152,14 @@ export default async function GroupPage() {
       group={group!}
       members={members || []}
       groupChildren={groupChildren}
-      currentMember={currentMember}
+      currentMember={{
+        id: currentMember.id,
+        group_id: currentMember.group_id,
+        display_name: currentMember.display_name,
+        role: currentMember.role,
+      }}
       userId={user.id}
+      userGroups={userGroups}
     />
   );
 }

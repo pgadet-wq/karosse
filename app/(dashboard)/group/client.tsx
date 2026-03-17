@@ -54,12 +54,23 @@ interface Child {
   };
 }
 
+interface UserGroup {
+  id: string;
+  name: string;
+  school_name: string | null;
+  invite_code: string;
+  memberId: string;
+  role: string;
+  display_name: string | null;
+}
+
 interface GroupClientProps {
   group: Group;
   members: Member[];
   groupChildren: Child[];
   currentMember: { id: string; group_id: string; display_name: string | null; role: string };
   userId: string;
+  userGroups: UserGroup[];
 }
 
 export function GroupClient({
@@ -68,6 +79,7 @@ export function GroupClient({
   groupChildren,
   currentMember,
   userId,
+  userGroups,
 }: GroupClientProps) {
   const router = useRouter();
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
@@ -343,9 +355,35 @@ export function GroupClient({
     return acc;
   }, {} as Record<string, { memberName: string; children: Child[] }>);
 
+  function switchGroup(groupId: string) {
+    // Set cookie so all pages use this group
+    document.cookie = `karosse_active_group=${groupId};path=/;max-age=${60 * 60 * 24 * 365}`;
+    router.push(`/group?group=${groupId}`);
+    router.refresh();
+  }
+
   return (
     <PageShell title={group.name}>
       <div className="space-y-6">
+        {/* Group selector (multi-group users) */}
+        {userGroups.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {userGroups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => switchGroup(g.id)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  g.id === group.id
+                    ? "bg-primary text-white"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-primary hover:text-primary"
+                }`}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Section: Invite */}
         <section className="bg-white rounded-xl shadow-sm p-4">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
