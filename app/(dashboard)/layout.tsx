@@ -5,8 +5,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // TODO: Add authentication check here
-  // For now, render the layout without auth verification
+  // Auth is verified by middleware.ts which redirects unauthenticated users
 
   return (
     <div className="min-h-screen bg-gray-50">

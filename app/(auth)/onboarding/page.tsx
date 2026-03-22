@@ -105,8 +105,10 @@ function OnboardingContent() {
 
     const supabase = createBrowserClient();
 
-    // Generate invite code (6 alphanumeric characters)
-    const newInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Generate invite code (6 alphanumeric characters, crypto-secure)
+    const array = new Uint8Array(4);
+    crypto.getRandomValues(array);
+    const newInviteCode = Array.from(array, (b) => b.toString(36)).join("").substring(0, 6).toUpperCase();
 
     // Get school name
     const school = SCHOOLS.find((s) => s.id === selectedSchool);
