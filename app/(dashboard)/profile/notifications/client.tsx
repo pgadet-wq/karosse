@@ -205,9 +205,9 @@ export function NotificationsClient() {
       .eq("id", memberId);
 
     if (error) {
-      console.error("Error saving preferences:", error);
+      console.error("Error saving preferences:", error.message, error.code, error.details, error.hint, "memberId:", memberId);
       setPreferences({ ...preferences });
-      toast.error("Erreur lors de la sauvegarde");
+      toast.error(`Erreur: ${error.message}`);
     }
 
     setSavingPref(null);
