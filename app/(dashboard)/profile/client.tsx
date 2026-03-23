@@ -144,69 +144,68 @@ export function ProfileClient({ user, isDriver, driverId }: ProfileClientProps) 
 
         {/* Settings Section */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {/* Notifications Toggle */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              {notificationState === "enabled" ? (
+          {/* Notifications */}
+          {notificationState === "enabled" ? (
+            <Link
+              href="/profile/notifications"
+              className="flex items-center justify-between px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
                 <Bell className="w-5 h-5 text-primary" aria-hidden="true" />
-              ) : (
-                <BellOff className="w-5 h-5 text-gray-400" aria-hidden="true" />
-              )}
-              <div>
-                <p className="text-gray-700 font-medium">Notifications</p>
-                <p className="text-xs text-gray-500">
-                  {notificationState === "loading"
-                    ? "Chargement..."
-                    : notificationState === "enabled"
-                    ? "Activées"
-                    : notificationState === "denied"
-                    ? "Bloquées dans le navigateur"
-                    : notificationState === "unsupported"
-                    ? "Non supportées"
-                    : "Désactivées"}
-                </p>
+                <div>
+                  <p className="text-gray-700 font-medium">Notifications</p>
+                  <p className="text-xs text-gray-500">Activées — configurer les préférences</p>
+                </div>
               </div>
-            </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            </Link>
+          ) : (
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <BellOff className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                <div>
+                  <p className="text-gray-700 font-medium">Notifications</p>
+                  <p className="text-xs text-gray-500">
+                    {notificationState === "loading"
+                      ? "Chargement..."
+                      : notificationState === "denied"
+                      ? "Bloquées dans le navigateur"
+                      : notificationState === "unsupported"
+                      ? "Non supportées"
+                      : "Désactivées"}
+                  </p>
+                </div>
+              </div>
 
-            {notificationState !== "loading" &&
-              notificationState !== "denied" &&
-              notificationState !== "unsupported" && (
-                <button
-                  onClick={handleToggleNotifications}
-                  disabled={isTogglingNotifications}
-                  className={`relative w-12 h-7 rounded-full transition-colors ${
-                    notificationState === "enabled" ? "bg-success" : "bg-gray-300"
-                  } ${isTogglingNotifications ? "opacity-50" : ""}`}
-                  aria-label={
-                    notificationState === "enabled"
-                      ? "Désactiver les notifications"
-                      : "Activer les notifications"
-                  }
-                  aria-pressed={notificationState === "enabled"}
-                >
-                  <div
-                    className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
-                      notificationState === "enabled"
-                        ? "translate-x-6"
-                        : "translate-x-1"
+              {notificationState !== "loading" &&
+                notificationState !== "denied" &&
+                notificationState !== "unsupported" && (
+                  <button
+                    onClick={handleToggleNotifications}
+                    disabled={isTogglingNotifications}
+                    className={`relative w-12 h-7 rounded-full transition-colors bg-gray-300 ${
+                      isTogglingNotifications ? "opacity-50" : ""
                     }`}
+                    aria-label="Activer les notifications"
                   >
-                    {isTogglingNotifications && (
-                      <Loader2 className="w-3 h-3 animate-spin text-gray-400 absolute top-1 left-1" />
-                    )}
-                  </div>
-                </button>
-              )}
+                    <div className="absolute top-1 translate-x-1 w-5 h-5 bg-white rounded-full shadow-md">
+                      {isTogglingNotifications && (
+                        <Loader2 className="w-3 h-3 animate-spin text-gray-400 absolute top-1 left-1" />
+                      )}
+                    </div>
+                  </button>
+                )}
 
-            {notificationState === "denied" && (
-              <Link
-                href="/profile/notifications"
-                className="text-sm text-primary hover:underline"
-              >
-                Configurer
-              </Link>
-            )}
-          </div>
+              {notificationState === "denied" && (
+                <Link
+                  href="/profile/notifications"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Configurer
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* My Vehicle (if driver) */}
           {isDriver && driverId && (

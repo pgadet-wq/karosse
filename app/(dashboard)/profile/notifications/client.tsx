@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   Smartphone,
   Info,
+  Calendar,
+  Check,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { PageShell } from "@/components/layout";
@@ -45,26 +49,31 @@ const NOTIFICATION_TYPES: {
   key: keyof NotificationPreferences;
   label: string;
   description: string;
+  icon: React.ReactNode;
 }[] = [
   {
     key: "trip_reminder",
     label: "Rappel la veille",
-    description: "Rappel la veille d'un trajet prévu avec les détails",
+    description: "Rappel la veille avec le conducteur et l'heure de départ",
+    icon: <Calendar className="w-5 h-5 text-primary" />,
   },
   {
     key: "trip_confirmed",
-    label: "Confirmations de trajet",
-    description: "Quand un trajet est confirmé par un membre",
+    label: "Trajet confirmé",
+    description: "Quand un conducteur confirme son trajet",
+    icon: <Check className="w-5 h-5 text-success" />,
   },
   {
     key: "trip_update",
-    label: "Modifications de trajet",
-    description: "Changements de conducteur, annulations, passagers",
+    label: "Modifications",
+    description: "Changement de conducteur, annulation, passagers modifiés",
+    icon: <RefreshCw className="w-5 h-5 text-secondary" />,
   },
   {
     key: "unassigned_reminder",
     label: "Trajet sans conducteur",
-    description: "Alerte 24h avant un trajet sans conducteur assigné",
+    description: "Alerte quand un trajet du lendemain n'a pas de conducteur",
+    icon: <AlertCircle className="w-5 h-5 text-warning" />,
   },
 ];
 
@@ -376,62 +385,94 @@ export function NotificationsClient() {
               )}
             </div>
 
-            {/* Notification Type Preferences */}
+            {/* Notification Type Preferences - Checkboxes */}
             {permission === "granted" && subscribed && (
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h3 className="font-medium text-gray-900">
-                    Types de notifications
+                    Choisissez vos notifications
                   </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Cochez les notifications que vous souhaitez recevoir
+                  </p>
                 </div>
-                {NOTIFICATION_TYPES.map((item) => (
-                  <div
-                    key={item.key}
-                    className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {item.label}
-                      </p>
-                      <p className="text-xs text-gray-500">{item.description}</p>
-                    </div>
+                {NOTIFICATION_TYPES.map((item) => {
+                  const isChecked = preferences[item.key];
+                  const isSaving = savingPref === item.key;
+
+                  return (
                     <button
+                      key={item.key}
                       onClick={() => togglePreference(item.key)}
-                      disabled={savingPref === item.key}
-                      className={`relative w-10 h-6 rounded-full transition-colors ${
-                        preferences[item.key] ? "bg-success" : "bg-gray-300"
-                      } ${savingPref === item.key ? "opacity-50" : ""}`}
+                      disabled={isSaving}
+                      className={`w-full flex items-center gap-3 px-4 py-4 border-b border-gray-100 last:border-b-0 transition-colors text-left ${
+                        isSaving ? "opacity-50" : "hover:bg-gray-50"
+                      }`}
+                      aria-pressed={isChecked}
                     >
+                      {/* Checkbox */}
                       <div
-                        className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
-                        style={{
-                          transform: preferences[item.key]
-                            ? "translateX(18px)"
-                            : "translateX(2px)",
-                        }}
-                      />
+                        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                          isChecked
+                            ? "bg-primary border-primary"
+                            : "border-gray-300 bg-white"
+                        }`}
+                      >
+                        {isChecked && (
+                          <svg
+                            className="w-4 h-4 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
+                        {isSaving && (
+                          <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Icon */}
+                      <div className="flex-shrink-0">{item.icon}</div>
+
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${isChecked ? "text-gray-900" : "text-gray-500"}`}>
+                          {item.label}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.description}
+                        </p>
+                      </div>
                     </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {/* Info Card */}
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex gap-3">
-                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-gray-600">
-                  <p className="font-medium text-gray-900 mb-1">
-                    Quand serez-vous notifié ?
-                  </p>
-                  <ul className="space-y-1 list-disc list-inside">
-                    <li>Quand un trajet est confirmé par un membre</li>
-                    <li>Quand un trajet est annulé ou modifié</li>
-                    <li>24h avant un trajet sans conducteur assigné</li>
-                  </ul>
+            {permission === "granted" && subscribed && (
+              <div className="bg-white rounded-xl shadow-sm p-4">
+                <div className="flex gap-3">
+                  <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-gray-600">
+                    <p className="font-medium text-gray-900 mb-1">
+                      Comment ça fonctionne ?
+                    </p>
+                    <p>
+                      Les notifications apparaissent en bannière sur votre téléphone, même quand
+                      l&apos;application est fermée. Le rappel quotidien est envoyé à 19h (heure de Nouméa).
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>
