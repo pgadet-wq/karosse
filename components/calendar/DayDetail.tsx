@@ -290,6 +290,7 @@ export function DayDetail({
       }
 
       toast.success("Trajet confirmé");
+      onClose();
       router.refresh();
     } catch (error: unknown) {
       console.error("Erreur confirmTrip:", error);
@@ -336,6 +337,7 @@ export function DayDetail({
 
           toast.success("Trajet annulé");
           setConfirmAction(null);
+          onClose();
           router.refresh();
         } catch (error: unknown) {
           console.error("Erreur cancelTrip:", error);
