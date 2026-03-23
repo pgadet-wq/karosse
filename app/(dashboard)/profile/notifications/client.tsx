@@ -85,6 +85,7 @@ export function NotificationsClient() {
   const [isToggling, setIsToggling] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
   const [savingPref, setSavingPref] = useState<string | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   const loadPreferences = useCallback(async () => {
     const supabase = createBrowserClient();
@@ -93,13 +94,16 @@ export function NotificationsClient() {
 
     const { data: member } = await supabase
       .from("members")
-      .select("notification_preferences")
+      .select("id, notification_preferences")
       .eq("user_id", user.id)
       .limit(1)
       .single();
 
-    if (member?.notification_preferences) {
-      setPreferences({ ...DEFAULT_PREFERENCES, ...member.notification_preferences });
+    if (member) {
+      setMemberId(member.id);
+      if (member.notification_preferences) {
+        setPreferences({ ...DEFAULT_PREFERENCES, ...member.notification_preferences });
+      }
     }
   }, []);
 
@@ -185,6 +189,8 @@ export function NotificationsClient() {
   }
 
   async function togglePreference(key: keyof NotificationPreferences) {
+    if (!memberId) return;
+
     const newValue = !preferences[key];
     const newPrefs = { ...preferences, [key]: newValue };
 
@@ -192,16 +198,11 @@ export function NotificationsClient() {
     setPreferences(newPrefs);
 
     const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSavingPref(null);
-      return;
-    }
 
     const { error } = await supabase
       .from("members")
       .update({ notification_preferences: newPrefs })
-      .eq("user_id", user.id);
+      .eq("id", memberId);
 
     if (error) {
       console.error("Error saving preferences:", error);
