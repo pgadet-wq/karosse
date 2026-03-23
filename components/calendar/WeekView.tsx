@@ -16,7 +16,7 @@ interface Trip {
   id: string;
   date: string;
   direction: "aller" | "retour";
-  status: "confirmed" | "planned" | "cancelled" | "unassigned";
+  status: "confirmed" | "planned" | "unassigned";
   driver?: {
     id: string;
     display_name: string | null;
@@ -101,8 +101,6 @@ export function WeekView({ trips, onDayClick, onWeekChange }: WeekViewProps) {
         return "bg-success text-white";
       case "planned":
         return "bg-warning text-white";
-      case "cancelled":
-        return "bg-danger text-white";
       case "unassigned":
       default:
         return "bg-gray-200 text-gray-500";

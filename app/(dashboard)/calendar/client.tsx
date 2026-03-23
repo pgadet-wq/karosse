@@ -180,22 +180,6 @@ export function CalendarClient({
             </div>
           )}
 
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-2xl font-bold text-primary">
-                {drivers.length}
-              </p>
-              <p className="text-sm text-gray-500">Conducteurs actifs</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-2xl font-bold text-secondary">
-                {groupChildren.length}
-              </p>
-              <p className="text-sm text-gray-500">Enfants inscrits</p>
-            </div>
-          </div>
-
           {/* Upcoming trips preview */}
           {!hasNoTrips && (
             <div className="bg-white rounded-xl shadow-sm p-4">
@@ -233,8 +217,10 @@ export function CalendarClient({
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        {trip.passengers.length} passager{trip.passengers.length > 1 ? "s" : ""}
+                      <span className="text-xs text-gray-400 text-right max-w-[40%] truncate">
+                        {trip.passengers.length > 0
+                          ? trip.passengers.map((p) => p.child.first_name).join(", ")
+                          : "Aucun passager"}
                       </span>
                     </button>
                   ))}
