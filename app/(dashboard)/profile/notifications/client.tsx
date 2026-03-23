@@ -28,12 +28,14 @@ import { createBrowserClient } from "@/lib/supabase/client";
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
 interface NotificationPreferences {
+  trip_reminder: boolean;
   trip_confirmed: boolean;
   trip_update: boolean;
   unassigned_reminder: boolean;
 }
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
+  trip_reminder: true,
   trip_confirmed: true,
   trip_update: true,
   unassigned_reminder: true,
@@ -44,6 +46,11 @@ const NOTIFICATION_TYPES: {
   label: string;
   description: string;
 }[] = [
+  {
+    key: "trip_reminder",
+    label: "Rappel la veille",
+    description: "Rappel la veille d'un trajet prévu avec les détails",
+  },
   {
     key: "trip_confirmed",
     label: "Confirmations de trajet",
