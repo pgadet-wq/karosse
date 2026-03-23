@@ -24,7 +24,7 @@ function configureVapid() {
 
 interface NotifyGroupPayload {
   groupId: string;
-  type: "driver_removed" | "child_removed" | "trip_cancelled" | "driver_assigned" | "trip_confirmed" | "unassigned_reminder";
+  type: "driver_removed" | "child_removed" | "trip_cancelled" | "driver_assigned" | "trip_confirmed" | "unassigned_reminder" | "planning_updated";
   tripDate: string;
   tripDirection: string;
   driverName?: string;
@@ -169,6 +169,10 @@ export async function POST(request: NextRequest) {
       case "unassigned_reminder":
         title = "Trajet sans conducteur";
         body = `Le trajet ${directionLabel} de demain (${dateFormatted}) n'a pas de conducteur. Pouvez-vous assurer ce trajet ?`;
+        break;
+      case "planning_updated":
+        title = "Planning mis à jour";
+        body = `La semaine du ${dateFormatted} a été planifiée. Consultez le calendrier pour voir les trajets.`;
         break;
     }
 

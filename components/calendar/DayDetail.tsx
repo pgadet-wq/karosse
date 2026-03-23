@@ -176,6 +176,22 @@ export function DayDetail({
 
       if (error) throw error;
 
+      // Notify group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "trip_update",
+            tripDate: dateStr,
+            tripDirection: "to_school",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
+
       toast.success("Heure de départ modifiée");
       setEditingTime(null);
       setTimeValue("");
@@ -200,6 +216,27 @@ export function DayDetail({
       });
 
       if (error) throw error;
+
+      // Find child name for notification
+      const child = groupChildren.find((c) => c.id === childId);
+      const childName = child ? `${child.first_name} ${child.last_name || ""}`.trim() : "Un enfant";
+
+      // Notify group
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "trip_update",
+            tripDate: dateStr,
+            tripDirection: "to_school",
+            childName,
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
 
       toast.success("Enfant ajouté au trajet");
       setShowChildSelect(null);

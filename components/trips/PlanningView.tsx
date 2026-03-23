@@ -294,6 +294,23 @@ export function PlanningView({
         }
       }
 
+      // Notify group about the planning update
+      try {
+        await fetch("/api/push/notify-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groupId,
+            type: "trip_update" as const,
+            tripDate: format(mondayStart, "yyyy-MM-dd"),
+            tripDirection: "to_school",
+            driverName: "Planification",
+          }),
+        });
+      } catch (notifyError) {
+        console.error("Failed to notify group:", notifyError);
+      }
+
       toast.success("Semaine planifiée avec succès !");
       router.refresh();
       onClose();
