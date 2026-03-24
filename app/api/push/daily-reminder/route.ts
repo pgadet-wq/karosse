@@ -95,7 +95,22 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceClient();
-    const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
+
+    // Allow override via body for testing, otherwise calculate tomorrow in Nouméa (UTC+11)
+    let tomorrow: string;
+    try {
+      const body = await request.json();
+      if (body?.date) {
+        tomorrow = body.date;
+      } else {
+        throw new Error("no date");
+      }
+    } catch {
+      const nowUtc = new Date();
+      const noumeaTime = new Date(nowUtc.getTime() + 11 * 60 * 60 * 1000);
+      const tomorrowNoumea = addDays(noumeaTime, 1);
+      tomorrow = format(tomorrowNoumea, "yyyy-MM-dd");
+    }
 
     // Check if tomorrow is a school day
     const { data: calendarDay } = await supabase
@@ -126,6 +141,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         sent: 0,
+        date: tomorrow,
         message: "No trips for tomorrow",
       });
     }
