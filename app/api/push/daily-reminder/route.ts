@@ -128,7 +128,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch ALL trips for tomorrow (not cancelled)
-    const { data: allTrips } = await supabase
+    const { data: allTrips, error: tripsError } = await supabase
       .from("trips")
       .select(`
         id, group_id, date, direction, status, departure_time, driver_id,
@@ -137,12 +137,17 @@ export async function POST(request: Request) {
       .eq("date", tomorrow)
       .neq("status", "cancelled");
 
-    if (!allTrips || allTrips.length === 0) {
+    if (tripsError || !allTrips || allTrips.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
         date: tomorrow,
         message: "No trips for tomorrow",
+        debug: {
+          error: tripsError?.message || null,
+          hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          tripsFound: allTrips?.length ?? null,
+        },
       });
     }
 
