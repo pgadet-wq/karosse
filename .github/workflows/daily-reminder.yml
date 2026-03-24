@@ -1,0 +1,23 @@
+name: Daily trip reminder
+
+on:
+  schedule:
+    # 08:00 UTC = 19:00 Nouméa (UTC+11)
+    - cron: "0 8 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send daily reminder
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.SITE_URL }}/api/push/daily-reminder" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "Response: $response"
+          if [ "$response" -ge 400 ]; then
+            echo "::error::API returned HTTP $response"
+            exit 1
+          fi
