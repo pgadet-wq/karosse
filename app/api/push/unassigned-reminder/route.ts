@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 import { addDays, format } from "date-fns";
+
+function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Lazy initialization flag
 let vapidConfigured = false;
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
     // Find all trips for tomorrow that have no driver

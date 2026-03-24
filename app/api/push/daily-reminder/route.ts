@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 import { addDays, format } from "date-fns";
+
+function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 let vapidConfigured = false;
 
@@ -36,7 +43,7 @@ interface TripRow {
 }
 
 async function sendToSubscriptions(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof createServiceClient>,
   subscriptions: { id: string; endpoint: string; p256dh: string; auth: string }[],
   payload: string
 ) {
@@ -87,7 +94,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
     // Check if tomorrow is a school day
