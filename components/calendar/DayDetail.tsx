@@ -75,13 +75,6 @@ export function DayDetail({
             Planifié
           </span>
         );
-      case "cancelled":
-        return (
-          <span className="flex items-center gap-1 px-2 py-0.5 bg-danger/10 text-danger text-xs font-medium rounded-full">
-            <X className="w-3 h-3" />
-            Annulé
-          </span>
-        );
       default:
         return (
           <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">

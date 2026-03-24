@@ -188,7 +188,7 @@ export interface CalendarTrip {
   id: string;
   date: string;
   direction: "aller" | "retour";
-  status: "confirmed" | "planned" | "cancelled" | "unassigned";
+  status: "confirmed" | "planned" | "unassigned";
   departure_time: string | null;
   available_seats: number;
   driver?: Omit<CalendarDriver, "available_days">;

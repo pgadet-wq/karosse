@@ -126,7 +126,7 @@ export default async function CalendarPage() {
       id: t.id,
       date: t.date,
       direction: t.direction === "to_school" ? "aller" : "retour" as "aller" | "retour",
-      status: (t.status || "unassigned") as "confirmed" | "planned" | "cancelled" | "unassigned",
+      status: (t.status || "unassigned") as "confirmed" | "planned" | "unassigned",
       departure_time: t.departure_time,
       available_seats: t.available_seats,
       driver: driver ? {
